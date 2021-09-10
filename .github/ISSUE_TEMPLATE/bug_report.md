@@ -9,13 +9,26 @@ assignees: ''
 <!--
 Welcome to OCaml multicore's Issue tracker!
 
-One thing that can greatly assist in debugging issues is if the
-OCaml multicore build version information is included. You can determine
-the OCaml multicore build version information with `ocamlrun -version`.
+We would like to thank you for reporting your bug to the Multicore OCaml team.
 
-If you have questions about *using* OCaml, please ask at
-https://discuss.ocaml.org (more people read Discuss than this tracker, and
-you'll get confirmation of whether you've really found a bug or need a new
-feature).
+To make sure that we can help you as best as possible, we advise to go through
+the page at https://github.com/ocaml-multicore/ocaml-multicore/wiki/Report-an-issue-to-the-bugtracker
+
+Report down here the output of the various steps you could run, as well as answering the following questions:
+
+### Description of the issue
+
+Tell us what problem you observed
+
+### Build steps and code sample
+
+Please provide here the build instructions for your issue,
+and a code sample if available.
+
+### Multicore OCaml build version
+
+### Did you try running it with the debug runtime and heap verification ON?
+
+### Backtrace (from gdb, rr, lldb, else...)
 
 -->
