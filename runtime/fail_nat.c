@@ -61,6 +61,12 @@ CAMLno_asan
 void caml_raise(value v)
 {
   char* exception_pointer;
+
+  Unlock_exn();
+
+  CAMLassert(!Is_exception_result(v));
+  v = caml_raise_if_exception(caml_process_pending_signals_with_root_exn(v));
+
   if (Caml_state->c_stack == 0)
     caml_fatal_uncaught_exception(v);
 
