@@ -34,6 +34,10 @@
 CAMLexport void caml_raise(value v)
 {
   caml_domain_state* domain_state = Caml_state;
+
+  Unlock_exn();
+  CAMLassert(!Is_exception_result(v));
+  v = caml_raise_if_exception(caml_process_pending_signals_with_root_exn(v));
   if (domain_state->external_raise == NULL) caml_fatal_uncaught_exception(v);
   *domain_state->external_raise->exn_bucket = v;
   while (domain_state->local_roots != Caml_state->external_raise->local_roots) {
