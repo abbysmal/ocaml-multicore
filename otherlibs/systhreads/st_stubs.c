@@ -24,6 +24,7 @@
 #include "caml/platform.h"
 #include "caml/custom.h"
 #include "caml/memory.h"
+#include "caml/io.h"
 #include "caml/fail.h"
 #include "caml/startup.h"
 #include "caml/fiber.h"
@@ -87,6 +88,7 @@ struct caml_thread_table {
   caml_thread_t all_threads;
   caml_thread_t current_thread;
   st_tlskey thread_key;
+  st_tlskey last_locked_key;
   st_masterlock thread_lock;
 };
 
@@ -95,6 +97,7 @@ static struct caml_thread_table thread_table[Max_domains];
 
 #define Thread_main_lock thread_table[Caml_state->id].thread_lock
 #define Thread_key thread_table[Caml_state->id].thread_key
+#define Last_channel_locked_key thread_table[Caml_state->id].last_locked_key
 #define All_threads thread_table[Caml_state->id].all_threads
 #define Current_thread thread_table[Caml_state->id].current_thread
 
@@ -338,6 +341,7 @@ static void caml_thread_initialize_domain()
   #endif
 
   st_tls_newkey(&Thread_key);
+  st_tls_newkey(&Last_channel_locked_key);
   st_tls_set(Thread_key, (void *) new_thread);
   st_thread_set_id(Ident(new_thread->descr));
 
@@ -345,6 +349,39 @@ static void caml_thread_initialize_domain()
   Current_thread = new_thread;
 
   return;
+}
+
+/* Hooks for I/O locking */
+
+static void caml_io_mutex_free(struct channel *chan)
+{
+  caml_plat_mutex_free(&chan->mutex);
+}
+
+static void caml_io_mutex_lock(struct channel *chan)
+{
+  if( caml_plat_try_lock(&chan->mutex) ) {
+    st_tls_set(Last_channel_locked_key, (void *) chan);
+    return;
+  }
+
+  /* If unsuccessful, block on mutex */
+  caml_enter_blocking_section();
+  caml_plat_lock(&chan->mutex);
+  st_tls_set(Last_channel_locked_key, (void *) chan);
+  caml_leave_blocking_section();
+}
+
+static void caml_io_mutex_unlock(struct channel *chan)
+{
+  caml_plat_unlock(&chan->mutex);
+  st_tls_set(Last_channel_locked_key, NULL);
+}
+
+static void caml_io_mutex_unlock_exn(void)
+{
+  struct channel * chan = st_tls_get(Last_channel_locked_key);
+  if (chan != NULL) caml_io_mutex_unlock(chan);
 }
 
 // This setup function is called as an entrypoint to the Thread module.
@@ -364,6 +401,10 @@ CAMLprim value caml_thread_initialize(value unit)   /* ML */
   caml_leave_blocking_section_hook = caml_thread_leave_blocking_section;
   caml_domain_start_hook = caml_thread_domain_start_hook;
   caml_domain_stop_hook = caml_thread_domain_stop_hook;
+  caml_channel_mutex_free = caml_io_mutex_free;
+  caml_channel_mutex_lock = caml_io_mutex_lock;
+  caml_channel_mutex_unlock = caml_io_mutex_unlock;
+  caml_channel_mutex_unlock_exn = caml_io_mutex_unlock_exn;
 
   st_atfork(caml_thread_reinitialize);
 
