@@ -19,11 +19,32 @@
 #include "misc.h"
 #include "config.h"
 
+/* On Multicore, caml_young_trigger can't currently be at the mid area point. */
+
+/* Global variables moved to Caml_state in 4.10 */
+#define caml_young_start Caml_state->young_start
 #define caml_young_end Caml_state->young_end
 #define caml_young_ptr Caml_state->young_ptr
-#define caml_young_start Caml_state->young_start
 #define caml_young_limit Caml_state->young_limit
+#define caml_young_alloc_start Caml_state->young_start
+#define caml_young_alloc_end Caml_state->young_end
+#define caml_young_trigger Caml_state->young_start
 #define caml_minor_heap_wsz Caml_state->minor_heap_wsz
+#define caml_extra_heap_resources_minor Caml_state->extra_heap_resources_minor
+
+/* TODO(engil): the semantic of this changed heavily.
+   Could realistically be replaced by `is_inside_stw_handler` but would account
+   for more than minor cycles.
+*/
+#define caml_in_minor_collection Caml_state->inside_stw_handler
+
+/* TODO(engil): this is not pretty: should we reintroduce these fields
+   in domain state instead?
+   We do not use this field at the moment, this is for compatibility.
+*/
+#define caml_young_alloc_mid \
+  (Caml_state->young_start + \
+   (Caml_state->young_end - Caml_state->young_start) / 2)
 
 
 #define CAML_TABLE_STRUCT(t) { \
