@@ -18,6 +18,9 @@
 
 #ifdef CAML_INTERNALS
 
+/* Compatibility macro for pre-existing trunk variables. */
+#define caml_allocated_words Caml_state->allocated_words
+
 typedef enum {
   Phase_sweep_and_mark_main,
   Phase_mark_final,
