@@ -473,18 +473,11 @@ extern int caml_snwprintf(wchar_t * buf,
 #endif
 
 /* platform dependent thread naming */
-#if defined(__APPLE__) || defined(_GNU_SOURCE)
-extern int caml_thread_setname(const char* name);
-#define caml_thread_setname_os caml_thread_setname
-#else
-
 #ifdef _WIN32
 extern int caml_thread_setname(const what_t* name);
 #else
-
-#define caml_thread_setname(name) /**/
-
-#endif
+extern int caml_thread_setname(const char* name);
+#define caml_thread_setname_os caml_thread_setname
 #endif
 
 #define caml_thread_setname_os caml_thread_setname

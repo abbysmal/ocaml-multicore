@@ -50,6 +50,10 @@
 #endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+#include <pthread_np.h>
+#else
+#define _GNU_SOURCE
+#include <pthread.h>
 #endif
 #include "caml/fail.h"
 #include "caml/memory.h"
@@ -462,6 +466,7 @@ int caml_thread_setname(const char* name)
   pthread_setname_np(name);
   return 0;
 #else
+#ifdef _GNU_SOURCE
   int ret;
   pthread_t self = pthread_self();
 
@@ -469,5 +474,8 @@ int caml_thread_setname(const char* name)
   if (ret == ERANGE)
     return -1;
   return 0;
+#else /* not glibc, not apple */
+  return 0;
+#endif
 #endif
 }

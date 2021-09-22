@@ -1324,3 +1324,16 @@ CAMLprim value caml_domain_dls_get(value unused)
   CAMLnoalloc;
   return Caml_state->dls_root;
 }
+
+CAMLprim value caml_ml_domain_set_name(value name)
+{
+  CAMLparam1(name);
+  char_os* name_os;
+
+  if (caml_string_length(name) >= MAX_THREAD_NAME_LENGTH)
+    caml_invalid_argument("caml_ml_domain_set_name");
+  name_os = caml_stat_strdup_to_os(String_val(name));
+  caml_thread_setname_os(name_os);
+  caml_stat_free(name_os);
+  CAMLreturn(Val_unit);
+}
