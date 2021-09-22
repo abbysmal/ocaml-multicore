@@ -455,3 +455,19 @@ int caml_num_rows_fd(int fd)
   return -1;
 #endif
 }
+
+int caml_thread_setname(const char* name)
+{
+#ifdef __APPLE__
+  pthread_setname_np(name);
+  return 0;
+#else
+  int ret;
+  pthread_t self = pthread_self();
+
+  ret = pthread_setname_np(self, name);
+  if (ret == ERANGE)
+    return -1;
+  return 0;
+#endif
+}

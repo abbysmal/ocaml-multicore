@@ -1015,3 +1015,8 @@ int caml_num_rows_fd(int fd)
 {
   return -1;
 }
+
+int caml_thread_setname(wchar_t *name)
+{
+  return -1;
+}
