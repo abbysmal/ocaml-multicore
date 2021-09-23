@@ -65,7 +65,7 @@ jobs:
         if: cancelled()
         uses: actions/upload-artifact@v2
         with:
-          name: last_backtrace
+          name:  ${{ matrix.name }}
           path: /tmp/last_backtrace.txt
           retention-days: 1
 
@@ -117,7 +117,7 @@ jobs:
         if: cancelled()
         uses: actions/upload-artifact@v2
         with:
-          name: last_backtrace
+          name:  ${{ matrix.name }}
           path: /tmp/last_backtrace.txt
           retention-days: 1
         
