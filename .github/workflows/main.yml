@@ -107,7 +107,7 @@ jobs:
           bash -xe tools/ci/actions/runner.sh test_multicore 1 "parallel" \
           "effects" "lib-threads" "lib-systhreads" "weak-ephe-final"
       - name: Upload backtrace
-        if: cancelled()
+        if: ${{ cancelled() }}
         - uses: actions/upload-artifact@v2
           with:
             name: last_backtrace
