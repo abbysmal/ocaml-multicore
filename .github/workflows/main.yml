@@ -108,9 +108,9 @@ jobs:
           "effects" "lib-threads" "lib-systhreads" "weak-ephe-final"
       - name: Upload backtrace
         if: cancelled()
-        - uses: actions/upload-artifact@v2
-          with:
-            name: last_backtrace
-            path: /tmp/last_backtrace.txt
-            retention-days: 1
+        uses: actions/upload-artifact@v2
+        with:
+          name: last_backtrace
+          path: /tmp/last_backtrace.txt
+          retention-days: 1
         
