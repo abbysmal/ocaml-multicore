@@ -115,7 +115,6 @@ if (!check_for_pending_signals())
      caml_garbage_collection
 */
 
-CAMLno_tsan
 CAMLexport void caml_record_signal(int signal_number)
 {
   atomic_fetch_add_explicit(&caml_pending_signals[signal_number], 1, memory_order_seq_cst);
@@ -142,7 +141,6 @@ CAMLexport void (*caml_enter_blocking_section_hook)(void) =
 CAMLexport void (*caml_leave_blocking_section_hook)(void) =
    caml_leave_blocking_section_default;
 
-CAMLno_tsan /* The read of [caml_something_to_do] is not synchronized. */
 CAMLexport void caml_enter_blocking_section(void)
 {
   while (1){
