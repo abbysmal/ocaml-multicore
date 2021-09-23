@@ -61,6 +61,13 @@ jobs:
         run: |
           bash -xe tools/ci/actions/backtrace_extractor.sh &
           bash -xe tools/ci/actions/runner.sh test_multicore 1 "parallel" "lib-threads" "lib-systhreads"
+      - name: Upload backtrace
+        if: cancelled()
+        uses: actions/upload-artifact@v2
+        with:
+          name: last_backtrace
+          path: /tmp/last_backtrace.txt
+          retention-days: 1
 
   testsuite:
     needs: build
