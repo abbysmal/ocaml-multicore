@@ -41,6 +41,9 @@ jobs:
           - name: macos
             os: macos-latest
     steps:
+      - name: Install gdb
+        if: ${{ matrix.name != 'macos' }}
+        run: sudo apt-get -y install gdb
       - name: Checkout
         uses: actions/checkout@v2
       - name: configure tree
@@ -81,6 +84,9 @@ jobs:
           - normal
           - super
     steps:
+      - name: Install gdb
+        if: ${{ matrix.name != 'macos' }}
+        run: sudo apt-get -y install gdb
       - uses: actions/download-artifact@v2
         with:
           name: compiler
