@@ -65,7 +65,11 @@ void caml_raise(value v)
   Unlock_exn();
 
   CAMLassert(!Is_exception_result(v));
-  v = caml_raise_if_exception(caml_process_pending_signals_with_root_exn(v));
+
+  // avoid calling caml_raise recursively
+  v = caml_process_pending_signals_with_root_exn(v);
+  if (Is_exception_result(v))
+    v = Extract_exception(v);
 
   exception_pointer = (char*)Caml_state->c_stack;
 
