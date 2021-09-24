@@ -84,6 +84,7 @@ jobs:
           - taskset
           - normal
           - super
+          - eintr
     steps:
       - name: Install gdb
         if: ${{ matrix.name != 'macos' }}
@@ -98,6 +99,11 @@ jobs:
         if: ${{ matrix.id == 'normal' }}
         run: |
           bash -xe tools/ci/actions/runner.sh test
+      - name: Run the testsuite (Eintr)
+        if: ${{ matrix.id == 'eintr' }}
+        run: |
+          bash -xe tools/ci/actions/backtrace_extractor.sh &
+          bash -xe tools/ci/actions/runner.sh test_multicore 10 "parallel" "lib-systhreads"
       - name: Run the testsuite (Super Charged)
         if: ${{ matrix.id == 'super' }}
         run: |
