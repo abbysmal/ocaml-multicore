@@ -70,11 +70,11 @@ Test () {
 TestLoop () {
   echo Running testsuite for "$@"
   rm -f to_test.txt
-  for test in "$@"
+  for test in "${@:3}"
   do
       echo tests/$test >> to_test.txt
   done
-  for it in {1..$2}
+  for it in {1.."$2"}
   do
       $MAKE -C testsuite one LIST=../to_test.txt || exit 1
   done || exit 1
@@ -130,7 +130,7 @@ case $1 in
 configure) Configure;;
 build) Build;;
 test) Test;;
-test_multicore) TestLoop "${@:3}";;
+test_multicore) TestLoop "$@";;
 api-docs) API_Docs;;
 install) Install;;
 other-checks) Checks;;
