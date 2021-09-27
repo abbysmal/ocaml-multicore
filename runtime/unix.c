@@ -50,11 +50,8 @@
 #endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
-#include <pthread_np.h>
-#else
-#define _GNU_SOURCE
-#include <pthread.h>
 #endif
+#include <pthread.h>
 #include "caml/fail.h"
 #include "caml/memory.h"
 #include "caml/misc.h"
