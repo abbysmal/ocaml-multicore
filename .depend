@@ -2103,8 +2103,10 @@ bytecomp/printinstr.cmx : \
     bytecomp/printinstr.cmi
 bytecomp/printinstr.cmi : \
     bytecomp/instruct.cmi
+bytecomp/runtimedef.cmo :
+bytecomp/runtimedef.cmx :
 bytecomp/symtable.cmo : \
-    lambda/runtimedef.cmi \
+    bytecomp/runtimedef.cmo \
     typing/predef.cmi \
     utils/misc.cmi \
     bytecomp/meta.cmi \
@@ -2119,7 +2121,7 @@ bytecomp/symtable.cmo : \
     parsing/asttypes.cmi \
     bytecomp/symtable.cmi
 bytecomp/symtable.cmx : \
-    lambda/runtimedef.cmx \
+    bytecomp/runtimedef.cmx \
     typing/predef.cmx \
     utils/misc.cmx \
     bytecomp/meta.cmx \
@@ -2306,7 +2308,7 @@ asmcomp/asmlibrarian.cmx : \
     asmcomp/asmlibrarian.cmi
 asmcomp/asmlibrarian.cmi :
 asmcomp/asmlink.cmo : \
-    lambda/runtimedef.cmi \
+    bytecomp/runtimedef.cmo \
     utils/profile.cmi \
     utils/misc.cmi \
     parsing/location.cmi \
@@ -2324,7 +2326,7 @@ asmcomp/asmlink.cmo : \
     asmcomp/asmgen.cmi \
     asmcomp/asmlink.cmi
 asmcomp/asmlink.cmx : \
-    lambda/runtimedef.cmx \
+    bytecomp/runtimedef.cmx \
     utils/profile.cmx \
     utils/misc.cmx \
     parsing/location.cmx \
@@ -5824,6 +5826,7 @@ middle_end/flambda/base_types/var_within_closure.cmx : \
     middle_end/flambda/base_types/var_within_closure.cmi
 middle_end/flambda/base_types/var_within_closure.cmi : \
     middle_end/flambda/base_types/closure_element.cmi
+driver/compdynlink.cmi :
 driver/compenv.cmo : \
     utils/warnings.cmi \
     utils/profile.cmi \
@@ -6158,13 +6161,13 @@ driver/pparse.cmi : \
     parsing/parsetree.cmi
 toplevel/expunge.cmo : \
     bytecomp/symtable.cmi \
-    lambda/runtimedef.cmi \
+    bytecomp/runtimedef.cmo \
     utils/misc.cmi \
     typing/ident.cmi \
     bytecomp/bytesections.cmi
 toplevel/expunge.cmx : \
     bytecomp/symtable.cmx \
-    lambda/runtimedef.cmx \
+    bytecomp/runtimedef.cmx \
     utils/misc.cmx \
     typing/ident.cmx \
     bytecomp/bytesections.cmx
@@ -6374,8 +6377,6 @@ toplevel/trace.cmi : \
     typing/path.cmi \
     parsing/longident.cmi \
     typing/env.cmi
-toplevel/byte/topdirs.cmi : \
-    parsing/longident.cmi
 toplevel/byte/topeval.cmo : \
     utils/warnings.cmi \
     typing/types.cmi \
@@ -6449,21 +6450,12 @@ toplevel/byte/topeval.cmx : \
 toplevel/byte/topeval.cmi : \
     toplevel/topcommon.cmi \
     parsing/parsetree.cmi
-toplevel/byte/toploop.cmi : \
-    utils/warnings.cmi \
-    typing/types.cmi \
-    typing/path.cmi \
-    parsing/parsetree.cmi \
-    typing/outcometree.cmi \
-    parsing/longident.cmi \
-    parsing/location.cmi \
-    typing/env.cmi
 toplevel/byte/topmain.cmo : \
     typing/types.cmi \
     toplevel/byte/trace.cmi \
-    toplevel/byte/toploop.cmi \
+    toplevel/toploop.cmi \
     toplevel/byte/topeval.cmi \
-    toplevel/byte/topdirs.cmi \
+    toplevel/topdirs.cmi \
     toplevel/topcommon.cmi \
     typing/printtyp.cmi \
     typing/path.cmi \
@@ -6479,9 +6471,9 @@ toplevel/byte/topmain.cmo : \
 toplevel/byte/topmain.cmx : \
     typing/types.cmx \
     toplevel/byte/trace.cmx \
-    toplevel/byte/toploop.cmi \
+    toplevel/toploop.cmx \
     toplevel/byte/topeval.cmx \
-    toplevel/byte/topdirs.cmi \
+    toplevel/topdirs.cmx \
     toplevel/topcommon.cmx \
     typing/printtyp.cmx \
     typing/path.cmx \
