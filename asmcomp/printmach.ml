@@ -38,6 +38,8 @@ let reg ppf r =
       fprintf ppf "[si%i]" s
   | Stack(Outgoing s) ->
       fprintf ppf "[so%i]" s
+  | Stack(Domainstate s) ->
+      fprintf ppf "[ds%i]" s
   end
 
 let regs ppf v =
@@ -120,8 +122,11 @@ let operation op arg ppf res =
       (if alloc then "" else " (noalloc)")
   | Istackoffset n ->
       fprintf ppf "offset stack %i" n
-  | Iload(chunk, addr) ->
+  | Iload(chunk, addr, Immutable) ->
       fprintf ppf "%s[%a]"
+       (Printcmm.chunk chunk) (Arch.print_addressing reg addr) arg
+  | Iload(chunk, addr, Mutable) ->
+      fprintf ppf "%s mut[%a]"
        (Printcmm.chunk chunk) (Arch.print_addressing reg addr) arg
   | Istore(chunk, addr, is_assign) ->
       fprintf ppf "%s[%a] := %a %s"
@@ -142,6 +147,7 @@ let operation op arg ppf res =
   | Idivf -> fprintf ppf "%a /f %a" reg arg.(0) reg arg.(1)
   | Ifloatofint -> fprintf ppf "floatofint %a" reg arg.(0)
   | Iintoffloat -> fprintf ppf "intoffloat %a" reg arg.(0)
+  | Iopaque -> fprintf ppf "opaque %a" reg arg.(0)
   | Ispecific op ->
       Arch.print_specific_operation reg op ppf arg
   | Inop -> fprintf ppf "nop"
@@ -158,16 +164,6 @@ let rec instr ppf i =
     fprintf ppf "@[<1>{%a" regsetaddr i.live;
     if Array.length i.arg > 0 then fprintf ppf "@ +@ %a" regs i.arg;
     fprintf ppf "}@]@,";
-    if !Clflags.dump_avail then begin
-      let module RAS = Reg_availability_set in
-      fprintf ppf "@[<1>AB={%a}" (RAS.print ~print_reg:reg) i.available_before;
-      begin match i.available_across with
-      | None -> ()
-      | Some available_across ->
-        fprintf ppf ",AA={%a}" (RAS.print ~print_reg:reg) available_across
-      end;
-      fprintf ppf "@]@,"
-    end
   end;
   begin match i.desc with
   | Iend -> ()

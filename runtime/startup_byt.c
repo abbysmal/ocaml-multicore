@@ -59,6 +59,8 @@
 #include "caml/sys.h"
 #include "caml/startup.h"
 
+#include "build_config.h"
+
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
@@ -338,7 +340,7 @@ CAMLexport void caml_main(char_os **argv)
   /* Initialize the abstract machine */
   caml_init_gc ();
   Caml_state->external_raise = NULL;
-  if (caml_params->backtrace_enabled) caml_record_backtrace(Val_int(1));
+  if (caml_params->backtrace_enabled) caml_record_backtraces(1);
   /* Initialize the interpreter */
   caml_interprete(NULL, 0);
   /* Initialize the debugger, if needed */
@@ -448,6 +450,10 @@ CAMLexport value caml_startup_code_exn(
   caml_minor_collection(); /* ensure all globals are in major heap */
   /* Record the sections (for caml_get_section_table in meta.c) */
   caml_init_section_table(section_table, section_table_size);
+  /* Initialize system libraries */
+  caml_sys_init(exe_name, argv);
+  /* Load debugging info, if b>=2 */
+  caml_load_main_debug_info();
   /* Execute the program */
   caml_debugger(PROGRAM_START, Val_unit);
   return caml_interprete(caml_start_code, caml_code_size);

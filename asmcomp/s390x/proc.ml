@@ -96,6 +96,8 @@ let stack_slot slot ty =
 
 (* Calling conventions *)
 
+let size_domainstate_args = 64 * size_int
+
 let calling_conventions
     first_int last_int first_float last_float make_stack stack_ofs arg =
   let loc = Array.make (Array.length arg) Reg.dummy in
@@ -121,21 +123,28 @@ let calling_conventions
           ofs := !ofs + size_float
         end
   done;
-  (loc, Misc.align !ofs 16)
-  (* Keep stack 16-aligned. *)
+  (loc, Misc.align (max 0 !ofs) 16) (* Keep stack 16-aligned. *)
 
-let incoming ofs = Incoming ofs
-let outgoing ofs = Outgoing ofs
+let incoming ofs =
+  if ofs >= 0
+  then Incoming ofs
+  else Domainstate (ofs + size_domainstate_args)
+let outgoing ofs =
+  if ofs >= 0
+  then Outgoing ofs
+  else Domainstate (ofs + size_domainstate_args)
 let not_supported _ofs = fatal_error "Proc.loc_results: cannot call"
 
-let max_arguments_for_tailcalls = 5
+let max_arguments_for_tailcalls = 8 (* in regs *) + 64 (* in domain state *)
 
 let loc_arguments arg =
-  calling_conventions 0 4 100 103 outgoing 0 arg
+  calling_conventions 0 7 100 103 outgoing (- size_domainstate_args) arg
 let loc_parameters arg =
-  let (loc, _ofs) = calling_conventions 0 4 100 103 incoming 0 arg in loc
+  let (loc, _ofs) =
+    calling_conventions 0 7 100 103 incoming (- size_domainstate_args) arg
+  in loc
 let loc_results res =
-  let (loc, _ofs) = calling_conventions 0 4 100 103 not_supported 0 res in loc
+  let (loc, _ofs) = calling_conventions 0 7 100 103 not_supported 0 res in loc
 
 (*   C calling conventions under SVR4:
      use GPR 2-6 and FPR 0,2,4,6 just like ML calling conventions.
@@ -208,16 +217,6 @@ let safe_register_pressure = function
 let max_register_pressure = function
     Iextcall _ -> [| 4; 7 |]
   | _ -> [| 9; 15 |]
-
-(* Pure operations (without any side effect besides updating their result
-   registers). *)
-
-let op_is_pure = function
-  | Icall_ind | Icall_imm _ | Itailcall_ind | Itailcall_imm _
-  | Iextcall _ | Istackoffset _ | Istore _ | Ialloc _
-  | Iintop(Icheckbound) | Iintop_imm(Icheckbound, _) -> false
-  | Ispecific(Imultaddf | Imultsubf) -> true
-  | _ -> true
 
 (* Layout of the stack *)
 

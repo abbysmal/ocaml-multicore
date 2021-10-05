@@ -70,7 +70,7 @@ let oper_result_type = function
   | Cload {memory_chunk} ->
       begin match memory_chunk with
       | Word_val -> typ_val
-      | Single | Double | Double_u -> typ_float
+      | Single | Double -> typ_float
       | _ -> typ_int
       end
   | Calloc -> typ_val
@@ -87,6 +87,7 @@ let oper_result_type = function
   | Cintoffloat -> typ_int
   | Craise _ -> typ_void
   | Ccheckbound -> typ_void
+  | Copaque -> typ_val
 
 (* Infer the size in bytes of the result of an expression whose evaluation
    may be deferred (cf. [emit_parts]). *)
@@ -324,7 +325,7 @@ method is_simple_expr = function
   | Cop(op, args, _) ->
       begin match op with
         (* The following may have side effects *)
-      | Capply _ | Cextcall _ | Calloc | Cstore _ | Craise _
+      | Capply _ | Cextcall _ | Calloc | Cstore _ | Craise _ | Copaque
       | Cnop (* conservative *) -> false
         (* The remaining operations are simple if their args are *)
       | Cload _ | Caddi | Csubi | Cmuli | Cmulhi | Cdivi | Cmodi | Cand | Cor
@@ -365,7 +366,7 @@ method effects_of exp =
   | Cop (op, args, _) ->
     let from_op =
       match op with
-      | Capply _ | Cextcall _ | Cnop -> EC.arbitrary
+      | Capply _ | Cextcall _ | Copaque | Cnop -> EC.arbitrary
       | Calloc | Cdls_get -> EC.none
       | Cstore _ -> EC.effect_only Effect.Arbitrary
       | Craise _ | Ccheckbound -> EC.effect_only Effect.Raise
@@ -447,9 +448,9 @@ method select_operation op args _dbg =
     (Icall_ind, args)
   | (Cextcall(func, ty_res, ty_args, alloc), _) ->
     Iextcall { func; alloc; ty_res; ty_args; stack_ofs = -1}, args
-  | (Cload {memory_chunk}, [arg]) ->
+  | (Cload {memory_chunk; mutability}, [arg]) ->
       let (addr, eloc) = self#select_addressing memory_chunk arg in
-      (Iload(memory_chunk, addr), [eloc])
+      (Iload(memory_chunk, addr, mutability), [eloc])
   | (Cstore (chunk, init), [arg1; arg2]) ->
       let (addr, eloc) = self#select_addressing chunk arg1 in
       let is_assign =
@@ -579,7 +580,7 @@ method insert_move env src dst =
     self#insert env (Iop Imove) [|src|] [|dst|]
 
 method insert_moves env src dst =
-  for i = 0 to min (Array.length src) (Array.length dst) - 1 do
+  for i = 0 to Stdlib.Int.min (Array.length src) (Array.length dst) - 1 do
     self#insert_move env src.(i) dst.(i)
   done
 
@@ -684,6 +685,13 @@ method emit_expr (env:environment) exp =
           dbg, Cconst_int (1, dbg),
           dbg, Cconst_int (0, dbg),
           dbg))
+  | Cop(Copaque, args, dbg) ->
+      begin match self#emit_parts_list env args with
+        None -> None
+      | Some (simple_args, env) ->
+         let rs = self#emit_tuple env simple_args in
+         Some (self#insert_op_debug env Iopaque dbg rs rs)
+      end
   | Cop(op, args, dbg) ->
       begin match self#emit_parts_list env args with
         None -> None
@@ -997,7 +1005,7 @@ method emit_stores env data regs_addr =
             Istore(_, _, _) ->
               for i = 0 to Array.length regs - 1 do
                 let r = regs.(i) in
-                let kind = if r.typ = Float then Double_u else Word_val in
+                let kind = if r.typ = Float then Double else Word_val in
                 self#insert env
                             (Iop(Istore(kind, !a, false)))
                             (Array.append [|r|] regs_addr) [||];

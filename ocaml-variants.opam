@@ -7,7 +7,7 @@
 
    Initial build:
 
-      opam pin add -k path --inplace-build ocaml-variants.4.12.0+domains+effects .
+      opam pin add -k path --inplace-build ocaml-variants.4.12.0+domains .
 
    This installs the compiler for the new opam switch. Subsequent builds can be
    done locally with:
@@ -23,28 +23,28 @@
 *)
 
 opam-version: "2.0"
-version: "4.12.0+domains+effects"
-synopsis: "OCaml 4.12.0, with support for multicore domains and effects (dev branch)"
+version: "4.14.0+domains"
+license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
+synopsis: "OCaml 4.14.0, with support for multicore domains (dev branch)"
 maintainer: "kc@kcsrk.info"
 authors: "Xavier Leroy and many contributors"
 homepage: "https://github.com/ocaml-multicore/ocaml-multicore"
 bug-reports: "https://github.com/ocaml-multicore/ocaml-multicore/issues"
 depends: [
-  "ocaml" {= "4.12.0" & post}
+  "ocaml" {= "4.14.0" & post}
   "base-unix" {post}
   "base-bigarray" {post}
   "base-threads" {post}
   "base-domains" {post}
-  "base-effects" {post}
   "ocaml-option-nnp"
 ]
 conflict-class: "ocaml-core-compiler"
 flags: compiler
-setenv: CAML_LD_LIBRARY_PATH = "%{lib}%/stublibs"
 build: [
   [
     "./configure"
     "--prefix=%{prefix}%"
+    "--docdir=%{doc}%/ocaml"
     "--with-afl" {ocaml-option-afl:installed}
     "--disable-native-compiler" {ocaml-option-bytecode-only:installed}
     "--disable-force-safe-string" {ocaml-option-default-unsafe-string:installed}

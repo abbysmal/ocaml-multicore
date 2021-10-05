@@ -164,7 +164,6 @@ module Pat = struct
   let unpack ?loc ?attrs a = mk ?loc ?attrs (Ppat_unpack a)
   let open_ ?loc ?attrs a b = mk ?loc ?attrs (Ppat_open (a, b))
   let exception_ ?loc ?attrs a = mk ?loc ?attrs (Ppat_exception a)
-  let effect_ ?loc ?attrs a b = mk ?loc ?attrs (Ppat_effect(a, b))
   let extension ?loc ?attrs a = mk ?loc ?attrs (Ppat_extension a)
 end
 
@@ -268,11 +267,11 @@ module Sig = struct
   let type_subst ?loc a = mk ?loc (Psig_typesubst a)
   let type_extension ?loc a = mk ?loc (Psig_typext a)
   let exception_ ?loc a = mk ?loc (Psig_exception a)
-  let effect_ ?loc a = mk ?loc (Psig_effect a)
   let module_ ?loc a = mk ?loc (Psig_module a)
   let mod_subst ?loc a = mk ?loc (Psig_modsubst a)
   let rec_module ?loc a = mk ?loc (Psig_recmodule a)
   let modtype ?loc a = mk ?loc (Psig_modtype a)
+  let modtype_subst ?loc a = mk ?loc (Psig_modtypesubst a)
   let open_ ?loc a = mk ?loc (Psig_open a)
   let include_ ?loc a = mk ?loc (Psig_include a)
   let class_ ?loc a = mk ?loc (Psig_class a)
@@ -295,7 +294,6 @@ module Str = struct
   let type_ ?loc rec_flag a = mk ?loc (Pstr_type (rec_flag, a))
   let type_extension ?loc a = mk ?loc (Pstr_typext a)
   let exception_ ?loc a = mk ?loc (Pstr_exception a)
-  let effect_ ?loc a = mk ?loc (Pstr_effect a)
   let module_ ?loc a = mk ?loc (Pstr_module a)
   let rec_module ?loc a = mk ?loc (Pstr_recmodule a)
   let modtype ?loc a = mk ?loc (Pstr_modtype a)
@@ -531,9 +529,10 @@ module Type = struct
     }
 
   let constructor ?(loc = !default_loc) ?(attrs = []) ?(info = empty_info)
-        ?(args = Pcstr_tuple []) ?res name =
+        ?(vars = []) ?(args = Pcstr_tuple []) ?res name =
     {
      pcd_name = name;
+     pcd_vars = vars;
      pcd_args = args;
      pcd_res = res;
      pcd_loc = loc;
@@ -583,10 +582,10 @@ module Te = struct
     }
 
   let decl ?(loc = !default_loc) ?(attrs = []) ?(docs = empty_docs)
-             ?(info = empty_info) ?(args = Pcstr_tuple []) ?res name =
+         ?(info = empty_info) ?(vars = []) ?(args = Pcstr_tuple []) ?res name =
     {
      pext_name = name;
-     pext_kind = Pext_decl(args, res);
+     pext_kind = Pext_decl(vars, args, res);
      pext_loc = loc;
      pext_attributes = add_docs_attrs docs (add_info_attrs info attrs);
     }
@@ -598,30 +597,6 @@ module Te = struct
      pext_kind = Pext_rebind lid;
      pext_loc = loc;
      pext_attributes = add_docs_attrs docs (add_info_attrs info attrs);
-    }
-
-  let effect_constructor ?(loc = !default_loc) ?(attrs = []) name kind =
-    {
-     peff_name = name;
-     peff_kind = kind;
-     peff_loc = loc;
-     peff_attributes = attrs;
-    }
-
-  let effect_decl ?(loc = !default_loc) ?(attrs = []) ?(args = []) name res =
-    {
-     peff_name = name;
-     peff_kind = Peff_decl(args, res);
-     peff_loc = loc;
-     peff_attributes = attrs;
-    }
-
-  let effect_rebind ?(loc = !default_loc) ?(attrs = []) name lid =
-    {
-     peff_name = name;
-     peff_kind = Peff_rebind lid;
-     peff_loc = loc;
-     peff_attributes = attrs;
     }
 
 end

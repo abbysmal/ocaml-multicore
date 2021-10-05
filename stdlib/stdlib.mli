@@ -45,39 +45,6 @@ exception Exit
 (** The [Exit] exception is not raised by any library function.  It is
     provided for use in your programs. *)
 
-(** {6 Effects} *)
-
-(** [perform e] performs an effect [e].
-
-    @raises Unhandled if there is no active handler. *)
-external perform : 'a eff -> 'a = "%perform"
-
-(** [continue k x] resumes the continuation [k] by passing [x] to [k].
-
-    @raise Invalid_argument if the continuation has already been
-    resumed. *)
-val continue: ('a, 'b) continuation -> 'a -> 'b
-
-(** [discontinue k e] resumes the continuation [k] by raising the
-    exception [e] in [k].
-
-    @raise Invalid_argument if the continuation has already been
-    resumed. *)
-val discontinue: ('a, 'b) continuation -> exn -> 'b
-
-(** [reperform e k] is semantically equivalent to:
-
-    {[
-      match perform e with
-      | v -> continue k v
-      | exception e -> discontinue k e
-    ]}
-
-    but it can be implemented directly more efficiently and is a
-    very common case: it is what you should do with effects that
-    you don't handle. *)
-val reperform: 'a eff -> ('a, 'b) continuation -> 'b
-
 exception Match_failure of (string * int * int)
   [@ocaml.warn_on_literal_pattern]
 (** Exception raised when none of the cases of a pattern-matching
@@ -597,6 +564,33 @@ external tanh : float -> float = "caml_tanh_float" "tanh"
   [@@unboxed] [@@noalloc]
 (** Hyperbolic tangent.  Argument is in radians. *)
 
+external acosh : float -> float = "caml_acosh_float" "caml_acosh"
+  [@@unboxed] [@@noalloc]
+(** Hyperbolic arc cosine.  The argument must fall within the range
+    [[1.0, inf]].
+    Result is in radians and is between [0.0] and [inf].
+
+    @since 4.13.0
+*)
+
+external asinh : float -> float = "caml_asinh_float" "caml_asinh"
+  [@@unboxed] [@@noalloc]
+(** Hyperbolic arc sine.  The argument and result range over the entire
+    real line.
+    Result is in radians.
+
+    @since 4.13.0
+*)
+
+external atanh : float -> float = "caml_atanh_float" "caml_atanh"
+  [@@unboxed] [@@noalloc]
+(** Hyperbolic arc tangent.  The argument must fall within the range
+    [[-1.0, 1.0]].
+    Result is in radians and ranges over the entire real line.
+
+    @since 4.13.0
+*)
+
 external ceil : float -> float = "caml_ceil_float" "ceil"
   [@@unboxed] [@@noalloc]
 (** Round above to an integer value.
@@ -705,6 +699,9 @@ external classify_float : (float [@unboxed]) -> fpclass =
 val ( ^ ) : string -> string -> string
 (** String concatenation.
     Right-associative operator, see {!Ocaml_operators} for more information.
+
+    @raise Invalid_argument if the result is longer then
+    than {!Sys.max_string_length} bytes.
 *)
 
 (** {1 Character operations}
@@ -1131,12 +1128,12 @@ val really_input_string : in_channel -> int -> string
 val input_byte : in_channel -> int
 (** Same as {!Stdlib.input_char}, but return the 8-bit integer representing
    the character.
-   @raise End_of_file if an end of file was reached. *)
+   @raise End_of_file if the end of file was reached. *)
 
 val input_binary_int : in_channel -> int
 (** Read an integer encoded in binary format (4 bytes, big-endian)
    from the given input channel. See {!Stdlib.output_binary_int}.
-   @raise End_of_file if an end of file was reached while reading the
+   @raise End_of_file if the end of file was reached while reading the
    integer. *)
 
 val input_value : in_channel -> 'a
@@ -1404,7 +1401,9 @@ module Format       = Format
 module Fun          = Fun
 module Gc           = Gc
 module Genlex       = Genlex
+[@@deprecated "Use the camlp-streams library instead."]
 module Hashtbl      = Hashtbl
+module In_channel   = In_channel
 module Int          = Int
 module Int32        = Int32
 module Int64        = Int64
@@ -1420,6 +1419,7 @@ module Nativeint    = Nativeint
 module Obj          = Obj
 module Oo           = Oo
 module Option       = Option
+module Out_channel  = Out_channel
 module Parsing      = Parsing
 module Pervasives   = Pervasives
 [@@deprecated "Use Stdlib instead.\n\
@@ -1438,6 +1438,7 @@ module Set          = Set
 module Stack        = Stack
 module StdLabels    = StdLabels
 module Stream       = Stream
+[@@deprecated "Use the camlp-streams library instead."]
 module String       = String
 module StringLabels = StringLabels
 module Sys          = Sys

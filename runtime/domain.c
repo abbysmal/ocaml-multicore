@@ -310,8 +310,8 @@ int caml_reallocate_minor_heap(asize_t wsize)
 
   domain_state->minor_heap_wsz = wsize;
 
-  domain_state->young_start = (char*)domain_self->minor_heap_area;
-  domain_state->young_end = (char*)(domain_self->minor_heap_area + Bsize_wsize(wsize));
+  domain_state->young_start = (value*)domain_self->minor_heap_area;
+  domain_state->young_end = (value*)(domain_self->minor_heap_area + Bsize_wsize(wsize));
   domain_state->young_limit = (uintnat) domain_state->young_start;
   domain_state->young_ptr = domain_state->young_end;
   return 0;
@@ -673,11 +673,19 @@ static void caml_domain_start_default(void)
   return;
 }
 
+static void caml_domain_external_interrupt_hook_default(void)
+{
+  return;
+}
+
 CAMLexport void (*caml_domain_start_hook)(void) =
    caml_domain_start_default;
 
 CAMLexport void (*caml_domain_stop_hook)(void) =
    caml_domain_stop_default;
+
+CAMLexport void (*caml_domain_external_interrupt_hook)(void) =
+   caml_domain_external_interrupt_hook_default;
 
 static void domain_terminate();
 
@@ -1030,6 +1038,11 @@ static void caml_poll_gc_work()
     caml_major_collection_slice(AUTO_TRIGGERED_MAJOR_SLICE);
     CAML_EV_END(EV_MAJOR);
   }
+
+  if (atomic_load_acq((atomic_uintnat*)&Caml_state->requested_external_interrupt)) {
+    caml_domain_external_interrupt_hook();
+  }
+
 }
 
 static void handle_gc_interrupt() {

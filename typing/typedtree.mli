@@ -89,11 +89,15 @@ and 'k pattern_desc =
          *)
   | Tpat_construct :
       Longident.t loc * Types.constructor_description *
-        value general_pattern list ->
+        value general_pattern list * (Ident.t loc list * core_type) option ->
       value pattern_desc
-        (** C                []
-            C P              [P]
-            C (P1, ..., Pn)  [P1; ...; Pn]
+        (** C                             ([], None)
+            C P                           ([P], None)
+            C (P1, ..., Pn)               ([P1; ...; Pn], None)
+            C (P : t)                     ([P], Some ([], t))
+            C (P1, ..., Pn : t)           ([P1; ...; Pn], Some ([], t))
+            C (type a) (P : t)            ([P], Some ([a], t))
+            C (type a) (P1, ..., Pn : t)  ([P1; ...; Pn], Some ([a], t))
           *)
   | Tpat_variant :
       label * value general_pattern option * Types.row_desc ref ->
@@ -205,23 +209,17 @@ and expression_desc =
                          (Labelled "y", Some (Texp_constant Const_int 3))
                         ])
          *)
-  | Texp_match of expression * computation case list * value case list * partial
+  | Texp_match of expression * computation case list * partial
         (** match E0 with
             | P1 -> E1
             | P2 | exception P3 -> E2
             | exception P4 -> E3
-            | effect P4 k -> E4
 
             [Texp_match (E0, [(P1, E1); (P2 | exception P3, E2);
-                              (exception P4, E3)], [(P4, E4)],  _)]
+                              (exception P4, E3)], _)]
          *)
-  | Texp_try of expression * value case list * value case list
-        (** try E with
-            | P1 -> E1
-            | effect P2 k -> E2
-
-            [Texp_try (E, [(P1, E1)], [(P2, E2)])]
-          *)
+  | Texp_try of expression * value case list
+        (** try E with P1 -> E1 | ... | PN -> EN *)
   | Texp_tuple of expression list
         (** (E1, ..., EN) *)
   | Texp_construct of
@@ -257,11 +255,11 @@ and expression_desc =
   | Texp_for of
       Ident.t * Parsetree.pattern * expression * expression * direction_flag *
         expression
-  | Texp_send of expression * meth * expression option
+  | Texp_send of expression * meth
   | Texp_new of Path.t * Longident.t loc * Types.class_declaration
   | Texp_instvar of Path.t * Path.t * string loc
   | Texp_setinstvar of Path.t * Path.t * string loc * expression
-  | Texp_override of Path.t * (Path.t * string loc * expression) list
+  | Texp_override of Path.t * (Ident.t * string loc * expression) list
   | Texp_letmodule of
       Ident.t option * string option loc * Types.module_presence * module_expr *
         expression
@@ -285,11 +283,11 @@ and expression_desc =
 and meth =
     Tmeth_name of string
   | Tmeth_val of Ident.t
+  | Tmeth_ancestor of Ident.t * Path.t
 
 and 'k case =
     {
      c_lhs: 'k general_pattern;
-     c_cont: Ident.t option;
      c_guard: expression option;
      c_rhs: expression;
     }
@@ -331,7 +329,8 @@ and class_expr_desc =
   | Tcl_let of rec_flag * value_binding list *
                   (Ident.t * expression) list * class_expr
   | Tcl_constraint of
-      class_expr * class_type option * string list * string list * Types.Concr.t
+      class_expr * class_type option * string list * string list
+      * Types.MethSet.t
   (* Visible instance variables, methods and concrete methods *)
   | Tcl_open of open_description * class_expr
 
@@ -416,7 +415,6 @@ and structure_item_desc =
   | Tstr_primitive of value_description
   | Tstr_type of rec_flag * type_declaration list
   | Tstr_typext of type_extension
-  | Tstr_effect of extension_constructor
   | Tstr_exception of type_exception
   | Tstr_module of module_binding
   | Tstr_recmodule of module_binding list
@@ -493,12 +491,12 @@ and signature_item_desc =
   | Tsig_type of rec_flag * type_declaration list
   | Tsig_typesubst of type_declaration list
   | Tsig_typext of type_extension
-  | Tsig_effect of extension_constructor
   | Tsig_exception of type_exception
   | Tsig_module of module_declaration
   | Tsig_modsubst of module_substitution
   | Tsig_recmodule of module_declaration list
   | Tsig_modtype of module_type_declaration
+  | Tsig_modtypesubst of module_type_declaration
   | Tsig_open of open_description
   | Tsig_include of include_description
   | Tsig_class of class_description list
@@ -564,8 +562,10 @@ and include_declaration = module_expr include_infos
 and with_constraint =
     Twith_type of type_declaration
   | Twith_module of Path.t * Longident.t loc
+  | Twith_modtype of module_type
   | Twith_typesubst of type_declaration
   | Twith_modsubst of Path.t * Longident.t loc
+  | Twith_modtypesubst of module_type
 
 and core_type =
   { mutable ctyp_desc : core_type_desc;
@@ -661,6 +661,7 @@ and constructor_declaration =
     {
      cd_id: Ident.t;
      cd_name: string loc;
+     cd_vars: string loc list;
      cd_args: constructor_arguments;
      cd_res: core_type option;
      cd_loc: Location.t;
@@ -700,7 +701,7 @@ and extension_constructor =
   }
 
 and extension_constructor_kind =
-    Text_decl of constructor_arguments * core_type option
+    Text_decl of string loc list * constructor_arguments * core_type option
   | Text_rebind of Path.t * Longident.t loc
 
 and class_type =
@@ -760,6 +761,21 @@ and 'a class_infos =
     ci_loc: Location.t;
     ci_attributes: attributes;
    }
+
+type implementation = {
+  structure: structure;
+  coercion: module_coercion;
+  signature: Types.signature
+}
+(** A typechecked implementation including its module structure, its exported
+    signature, and a coercion of the module against that signature.
+
+    If an .mli file is present, the signature will come from that file and be
+    the exported signature of the module.
+
+    If there isn't one, the signature will be inferred from the module
+    structure.
+*)
 
 (* Auxiliary functions over the a.s.t. *)
 

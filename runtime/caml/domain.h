@@ -37,6 +37,7 @@ int caml_reallocate_minor_heap(asize_t);
 
 int caml_incoming_interrupts_queued(void);
 
+int caml_check_pending_actions();
 void caml_handle_gc_interrupt(void);
 void caml_handle_gc_interrupt_no_async_exceptions(void);
 void caml_handle_incoming_interrupts(void);
@@ -57,6 +58,7 @@ CAMLextern void (*caml_atfork_hook)(void);
 
 CAMLextern void (*caml_domain_start_hook)(void);
 CAMLextern void (*caml_domain_stop_hook)(void);
+CAMLextern void (*caml_domain_external_interrupt_hook)(void);
 
 void caml_init_domains(uintnat minor_heap_size);
 void caml_init_domain_self(int);

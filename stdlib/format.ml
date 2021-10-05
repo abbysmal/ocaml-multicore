@@ -270,7 +270,7 @@ let break_new_line state (before, offset, after) width =
   state.pp_is_new_line <- true;
   let indent = state.pp_margin - width + offset in
   (* Don't indent more than pp_max_indent. *)
-  let real_indent = min state.pp_max_indent indent in
+  let real_indent = Int.min state.pp_max_indent indent in
   state.pp_current_indent <- real_indent;
   state.pp_space_left <- state.pp_margin - state.pp_current_indent;
   pp_output_indent state state.pp_current_indent;
@@ -636,6 +636,8 @@ let pp_print_as state isize s =
 let pp_print_string state s =
   pp_print_as state (String.length s) s
 
+let pp_print_bytes state s =
+  pp_print_as state (Bytes.length s) (Bytes.to_string s)
 
 (* To format an integer. *)
 let pp_print_int state i = pp_print_string state (Int.to_string i)
@@ -806,7 +808,7 @@ let pp_set_margin state n =
       (* If possible maintain pp_min_space_left to its actual value,
          if this leads to a too small max_indent, take half of the
          new margin, if it is greater than 1. *)
-       max (max (state.pp_margin - state.pp_min_space_left)
+       Int.max (Int.max (state.pp_margin - state.pp_min_space_left)
                 (state.pp_margin / 2)) 1 in
     (* Rebuild invariants. *)
     pp_set_max_indent state new_max_indent
@@ -1179,6 +1181,7 @@ and open_stag v = pp_open_stag (DLS.get std_formatter_key) v
 and close_stag v = pp_close_stag (DLS.get std_formatter_key) v
 and print_as v w = pp_print_as (DLS.get std_formatter_key) v w
 and print_string v = pp_print_string (DLS.get std_formatter_key) v
+and print_bytes v = pp_print_bytes (DLS.get std_formatter_key) v
 and print_int v = pp_print_int (DLS.get std_formatter_key) v
 and print_float v = pp_print_float (DLS.get std_formatter_key) v
 and print_char v = pp_print_char (DLS.get std_formatter_key) v
@@ -1303,6 +1306,10 @@ let pp_print_option ?(none = fun _ () -> ()) pp_v ppf = function
 let pp_print_result ~ok ~error ppf = function
 | Ok v -> ok ppf v
 | Error e -> error ppf e
+
+let pp_print_either ~left ~right ppf = function
+| Either.Left l -> left ppf l
+| Either.Right r -> right ppf r
 
  (**************************************************************)
 

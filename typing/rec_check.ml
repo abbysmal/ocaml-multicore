@@ -528,8 +528,8 @@ let rec expression : Typedtree.expression -> term_judg =
       value_bindings rec_flag bindings >> expression body
     | Texp_letmodule (x, _, _, mexp, e) ->
       module_binding (x, mexp) >> expression e
-    | Texp_match (e, cases, eff_cases, _) ->
-      (* TODO: update comment below for eff_cases
+    | Texp_match (e, cases, _) ->
+      (*
          (Gi; mi |- pi -> ei : m)^i
          G |- e : sum(mi)^i
          ----------------------------------------------
@@ -539,10 +539,7 @@ let rec expression : Typedtree.expression -> term_judg =
         let pat_envs, pat_modes =
           List.split (List.map (fun c -> case c mode) cases) in
         let env_e = expression e (List.fold_left Mode.join Ignore pat_modes) in
-        let eff_envs, eff_modes =
-          List.split (List.map (fun c -> case c mode) eff_cases) in
-        let eff_e = expression e (List.fold_left Mode.join Ignore eff_modes) in
-        Env.join_list ((Env.join_list (env_e :: pat_envs)) :: (eff_e :: eff_envs)))
+        Env.join_list (env_e :: pat_envs))
     | Texp_for (_, _, low, high, _, body) ->
       (*
         G1 |- low: m[Dereference]
@@ -696,15 +693,14 @@ let rec expression : Typedtree.expression -> term_judg =
         expression cond << Dereference;
         expression body << Guard;
       ]
-    | Texp_send (e1, _, eo) ->
+    | Texp_send (e1, _) ->
       (*
         G |- e: m[Dereference]
         ---------------------- (plus weird 'eo' option)
         G |- e#x: m
       *)
       join [
-        expression e1 << Dereference;
-        option expression eo << Dereference;
+        expression e1 << Dereference
       ]
     | Texp_field (e, _, _) ->
       (*
@@ -747,7 +743,7 @@ let rec expression : Typedtree.expression -> term_judg =
       modexp mexp
     | Texp_object (clsstrct, _) ->
       class_structure clsstrct
-    | Texp_try (e, cases, eff_cases) ->
+    | Texp_try (e, cases) ->
       (*
         G |- e: m      (Gi; _ |- pi -> ei : m)^i
         --------------------------------------------
@@ -760,8 +756,7 @@ let rec expression : Typedtree.expression -> term_judg =
       let case_env c m = fst (case c m) in
       join [
         expression e;
-        list case_env cases;
-        list case_env eff_cases;
+        list case_env cases
       ]
     | Texp_override (pth, fields) ->
       (*
@@ -964,10 +959,6 @@ and structure_item : Typedtree.structure_item -> bind_judg =
       Env.join
         (list extension_constructor exts m)
         (Env.remove_list ext_ids env)
-    | Tstr_effect ext ->
-      Env.join
-        (extension_constructor ext m)
-        (Env.remove ext.ext_id env)
     | Tstr_exception {tyexn_constructor = ext; _} ->
       Env.join
         (extension_constructor ext m)
@@ -1200,7 +1191,7 @@ and is_destructuring_pattern : type k . k general_pattern -> bool =
     | Tpat_alias (pat, _, _) -> is_destructuring_pattern pat
     | Tpat_constant _ -> true
     | Tpat_tuple _ -> true
-    | Tpat_construct (_, _, _) -> true
+    | Tpat_construct _ -> true
     | Tpat_variant _ -> true
     | Tpat_record (_, _) -> true
     | Tpat_array _ -> true
@@ -1211,17 +1202,20 @@ and is_destructuring_pattern : type k . k general_pattern -> bool =
         is_destructuring_pattern l || is_destructuring_pattern r
 
 let is_valid_recursive_expression idlist expr =
-  let ty = expression expr Return in
-  match Env.unguarded ty idlist, Env.dependent ty idlist,
-        classify_expression expr with
-  | _ :: _, _, _ (* The expression inspects rec-bound variables *)
-  | [], _ :: _, Dynamic -> (* The expression depends on rec-bound variables
-                              and its size is unknown *)
-      false
-  | [], _, Static (* The expression has known size *)
-  | [], [], Dynamic -> (* The expression has unknown size,
-                          but does not depend on rec-bound variables *)
-      true
+  match expr.exp_desc with
+  | Texp_function _ ->
+     (* Fast path: functions can never have invalid recursive references *)
+     true
+  | _ ->
+     match classify_expression expr with
+     | Static ->
+        (* The expression has known size *)
+        let ty = expression expr Return in
+        Env.unguarded ty idlist = []
+     | Dynamic ->
+        (* The expression has unknown size *)
+        let ty = expression expr Return in
+        Env.unguarded ty idlist = [] && Env.dependent ty idlist = []
 
 (* A class declaration may contain let-bindings. If they are recursive,
    their validity will already be checked by [is_valid_recursive_expression]

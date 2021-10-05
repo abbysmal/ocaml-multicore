@@ -76,11 +76,20 @@ CAMLdeprecated_typedef(addr, char *);
   #define Noreturn
 #endif
 
+/* Manually preventing inlining */
+#if defined(__GNUC__)
+  #define Caml_noinline __attribute__ ((noinline))
+#elif defined(_MSC_VER)
+  #define Caml_noinline __declspec(noinline)
+#else
+  #define Caml_noinline
+#endif
+
 /* Export control (to mark primitives and to handle Windows DLL) */
 
 #ifndef CAMLDLLIMPORT
   #if defined(SUPPORT_DYNAMIC_LINKING) && defined(ARCH_SIXTYFOUR) \
-      && defined(__CYGWIN__)
+      && (defined(__CYGWIN__) || defined(__MINGW32__))
     #define CAMLDLLIMPORT __declspec(dllimport)
   #else
     #define CAMLDLLIMPORT
@@ -113,6 +122,17 @@ CAMLdeprecated_typedef(addr, char *);
 #define CAMLalign(n) __declspec(align(n))
 #else
 #error "How do I align values on this platform?"
+#endif
+
+/* Prefetching */
+
+#ifdef CAML_INTERNALS
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#define caml_prefetch(p) __builtin_prefetch((p), 1, 3)
+/* 1 = intent to write; 3 = all cache levels */
+#else
+#define caml_prefetch(p)
+#endif
 #endif
 
 /* CAMLunused is preserved for compatibility reasons.
@@ -296,6 +316,8 @@ extern double caml_log1p(double);
 
 #ifdef CAML_INTERNALS
 #define T(x) L ## x
+
+#define main_os wmain
 #endif
 
 #define access_os _waccess
@@ -321,6 +343,8 @@ extern double caml_log1p(double);
 #define mktemp_os _wmktemp
 #define fopen_os _wfopen
 
+#define clock_os caml_win32_clock
+
 #define caml_stat_strdup_os caml_stat_wcsdup
 #define caml_stat_strconcat_os caml_stat_wcsconcat
 
@@ -332,6 +356,8 @@ extern double caml_log1p(double);
 
 #ifdef CAML_INTERNALS
 #define T(x) x
+
+#define main_os main
 #endif
 
 #define access_os access
@@ -356,6 +382,8 @@ extern double caml_log1p(double);
 #define strcpy_os strcpy
 #define mktemp_os mktemp
 #define fopen_os fopen
+
+#define clock_os clock
 
 #define caml_stat_strdup_os caml_stat_strdup
 #define caml_stat_strconcat_os caml_stat_strconcat

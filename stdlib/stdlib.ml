@@ -43,24 +43,6 @@ exception Division_by_zero = Division_by_zero
 exception Sys_blocked_io = Sys_blocked_io
 exception Undefined_recursive_module = Undefined_recursive_module
 
-(* Effects *)
-
-type ('a, 'b) stack
-external take_cont_noexc : ('a, 'b) continuation -> ('a, 'b) stack = "caml_continuation_use_noexc" [@@noalloc]
-external resume : ('a, 'b) stack -> ('c -> 'a) -> 'c -> 'b = "%resume"
-
-let continue k v =
-  resume (take_cont_noexc k) (fun x -> x) v
-let discontinue k e =
-  resume (take_cont_noexc k) (fun e -> raise e) e
-
-external perform : 'a eff -> 'a = "%perform"
-
-let reperform e k =
-  match perform e with
-  | v -> continue k v
-  | exception e -> discontinue k e
-
 (* Composition operators *)
 
 external ( |> ) : 'a -> ('a -> 'b) -> 'b = "%revapply"
@@ -156,6 +138,8 @@ external hypot : float -> float -> float
 external cos : float -> float = "caml_cos_float" "cos" [@@unboxed] [@@noalloc]
 external cosh : float -> float = "caml_cosh_float" "cosh"
   [@@unboxed] [@@noalloc]
+external acosh : float -> float = "caml_acosh_float" "caml_acosh"
+  [@@unboxed] [@@noalloc]
 external log : float -> float = "caml_log_float" "log" [@@unboxed] [@@noalloc]
 external log10 : float -> float = "caml_log10_float" "log10"
   [@@unboxed] [@@noalloc]
@@ -164,10 +148,14 @@ external log1p : float -> float = "caml_log1p_float" "caml_log1p"
 external sin : float -> float = "caml_sin_float" "sin" [@@unboxed] [@@noalloc]
 external sinh : float -> float = "caml_sinh_float" "sinh"
   [@@unboxed] [@@noalloc]
+external asinh : float -> float = "caml_asinh_float" "caml_asinh"
+  [@@unboxed] [@@noalloc]
 external sqrt : float -> float = "caml_sqrt_float" "sqrt"
   [@@unboxed] [@@noalloc]
 external tan : float -> float = "caml_tan_float" "tan" [@@unboxed] [@@noalloc]
 external tanh : float -> float = "caml_tanh_float" "tanh"
+  [@@unboxed] [@@noalloc]
+external atanh : float -> float = "caml_atanh_float" "caml_atanh"
   [@@unboxed] [@@noalloc]
 external ceil : float -> float = "caml_ceil_float" "ceil"
   [@@unboxed] [@@noalloc]
@@ -617,6 +605,7 @@ module Fun          = Fun
 module Gc           = Gc
 module Genlex       = Genlex
 module Hashtbl      = Hashtbl
+module In_channel   = In_channel
 module Int          = Int
 module Int32        = Int32
 module Int64        = Int64
@@ -632,6 +621,7 @@ module Nativeint    = Nativeint
 module Obj          = Obj
 module Oo           = Oo
 module Option       = Option
+module Out_channel  = Out_channel
 module Parsing      = Parsing
 module Pervasives   = Pervasives
 module Printexc     = Printexc

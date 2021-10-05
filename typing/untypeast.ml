@@ -40,8 +40,6 @@ type mapper = {
   expr: mapper -> T.expression -> expression;
   extension_constructor: mapper -> T.extension_constructor
                          -> extension_constructor;
-  effect_constructor: mapper -> T.extension_constructor
-                         -> effect_constructor;
   include_declaration: mapper -> T.include_declaration -> include_declaration;
   include_description: mapper -> T.include_description -> include_description;
   label_declaration: mapper -> T.label_declaration -> label_declaration;
@@ -179,8 +177,6 @@ let structure_item sub item =
         Pstr_type (rec_flag, List.map (sub.type_declaration sub) list)
     | Tstr_typext tyext ->
         Pstr_typext (sub.type_extension sub tyext)
-    | Tstr_effect ext ->
-        Pstr_effect (sub.effect_constructor sub ext)
     | Tstr_exception ext ->
         Pstr_exception (sub.type_exception sub ext)
     | Tstr_module mb ->
@@ -256,6 +252,7 @@ let constructor_declaration sub cd =
   let loc = sub.location sub cd.cd_loc in
   let attrs = sub.attributes sub cd.cd_attributes in
   Type.constructor ~loc ~attrs
+    ~vars:cd.cd_vars
     ~args:(constructor_arguments sub cd.cd_args)
     ?res:(Option.map (sub.typ sub) cd.cd_res)
     (map_loc sub cd.cd_name)
@@ -287,22 +284,10 @@ let extension_constructor sub ext =
   Te.constructor ~loc ~attrs
     (map_loc sub ext.ext_name)
     (match ext.ext_kind with
-      | Text_decl (args, ret) ->
-          Pext_decl (constructor_arguments sub args,
+      | Text_decl (vs, args, ret) ->
+          Pext_decl (vs, constructor_arguments sub args,
                      Option.map (sub.typ sub) ret)
       | Text_rebind (_p, lid) -> Pext_rebind (map_loc sub lid)
-    )
-
-let effect_constructor sub ext =
-  let loc = sub.location sub ext.ext_loc; in
-  let attrs = sub.attributes sub ext.ext_attributes in
-  Te.effect_constructor ~loc ~attrs
-    (map_loc sub ext.ext_name)
-    (match ext.ext_kind with
-      | Text_decl (Cstr_tuple l, Some ret) ->
-          Peff_decl (List.map (sub.typ sub) l, (sub.typ sub) ret)
-      | Text_rebind (_p, lid) -> Peff_rebind (map_loc sub lid)
-      | _ -> failwith "Untypast.effect_constructor"
     )
 
 let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
@@ -345,17 +330,28 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
     | Tpat_constant cst -> Ppat_constant (constant cst)
     | Tpat_tuple list ->
         Ppat_tuple (List.map (sub.pat sub) list)
-    | Tpat_construct (lid, _, args) ->
+    | Tpat_construct (lid, _, args, vto) ->
+        let tyo =
+          match vto with
+            None -> None
+          | Some (vl, ty) ->
+              let vl =
+                List.map (fun x -> {x with txt = Ident.name x.txt}) vl
+              in
+              Some (vl, sub.typ sub ty)
+        in
+        let arg =
+          match args with
+            []    -> None
+          | [arg] -> Some (sub.pat sub arg)
+          | args  -> Some (Pat.tuple ~loc (List.map (sub.pat sub) args))
+        in
         Ppat_construct (map_loc sub lid,
-          (match args with
-              [] -> None
-            | [arg] -> Some (sub.pat sub arg)
-            | args ->
-                Some
-                  (Pat.tuple ~loc
-                     (List.map (sub.pat sub) args)
-                  )
-          ))
+          match tyo, arg with
+          | Some (vl, ty), Some arg ->
+              Some (vl, Pat.mk ~loc (Ppat_constraint (arg, ty)))
+          | None, Some arg -> Some ([], arg)
+          | _, None -> None)
     | Tpat_variant (label, pato, _) ->
         Ppat_variant (label, Option.map (sub.pat sub) pato)
     | Tpat_record (list, closed) ->
@@ -434,32 +430,10 @@ let expression sub exp =
                 None -> list
               | Some exp -> (label, sub.expr sub exp) :: list
           ) list [])
-    | Texp_match (exp, cases, eff_cases, _) ->
-      let merged_cases = List.map (sub.case sub) cases
-        @ List.map
-          (fun c ->
-            let uc = sub.case sub c in
-            let pat = { uc.pc_lhs
-                        (* XXX KC: The 2nd argument of Ppat_effect is wrong *)
-                        with ppat_desc = Ppat_effect (uc.pc_lhs, uc.pc_lhs) }
-            in
-            { uc with pc_lhs = pat })
-          eff_cases
-      in
-      Pexp_match (sub.expr sub exp, merged_cases)
-    | Texp_try (exp, exn_cases, eff_cases) ->
-        let merged_cases = List.map (sub.case sub) exn_cases
-        @ List.map
-          (fun c ->
-            let uc = sub.case sub c in
-            let pat = { uc.pc_lhs
-                        (* XXX KC: The 2nd argument of Ppat_effect is wrong *)
-                        with ppat_desc = Ppat_effect (uc.pc_lhs, uc.pc_lhs) }
-            in
-            { uc with pc_lhs = pat })
-          eff_cases
-        in
-        Pexp_try (sub.expr sub exp, merged_cases)
+    | Texp_match (exp, cases, _) ->
+      Pexp_match (sub.expr sub exp, List.map (sub.case sub) cases)
+    | Texp_try (exp, cases) ->
+        Pexp_try (sub.expr sub exp, List.map (sub.case sub) cases)
     | Texp_tuple list ->
         Pexp_tuple (List.map (sub.expr sub) list)
     | Texp_construct (lid, _, args) ->
@@ -499,10 +473,11 @@ let expression sub exp =
         Pexp_for (name,
           sub.expr sub exp1, sub.expr sub exp2,
           dir, sub.expr sub exp3)
-    | Texp_send (exp, meth, _) ->
+    | Texp_send (exp, meth) ->
         Pexp_send (sub.expr sub exp, match meth with
             Tmeth_name name -> mkloc name loc
-          | Tmeth_val id -> mkloc (Ident.name id) loc)
+          | Tmeth_val id -> mkloc (Ident.name id) loc
+          | Tmeth_ancestor(id, _) -> mkloc (Ident.name id) loc)
     | Texp_new (_path, lid, _) -> Pexp_new (map_loc sub lid)
     | Texp_instvar (_, path, name) ->
       Pexp_ident ({loc = sub.location sub name.loc ; txt = lident_of_path path})
@@ -579,8 +554,6 @@ let signature_item sub item =
         Psig_typesubst (List.map (sub.type_declaration sub) list)
     | Tsig_typext tyext ->
         Psig_typext (sub.type_extension sub tyext)
-    | Tsig_effect ext ->
-        Psig_effect (sub.effect_constructor sub ext)
     | Tsig_exception ext ->
         Psig_exception (sub.type_exception sub ext)
     | Tsig_module md ->
@@ -591,6 +564,8 @@ let signature_item sub item =
         Psig_recmodule (List.map (sub.module_declaration sub) list)
     | Tsig_modtype mtd ->
         Psig_modtype (sub.module_type_declaration sub mtd)
+    | Tsig_modtypesubst mtd ->
+        Psig_modtypesubst (sub.module_type_declaration sub mtd)
     | Tsig_open od ->
         Psig_open (sub.open_description sub od)
     | Tsig_include incl ->
@@ -645,7 +620,7 @@ let functor_parameter sub : functor_parameter -> Parsetree.functor_parameter =
   | Unit -> Unit
   | Named (_, name, mtype) -> Named (name, sub.module_type sub mtype)
 
-let module_type sub mty =
+let module_type (sub : mapper) mty =
   let loc = sub.location sub mty.mty_loc in
   let attrs = sub.attributes sub mty.mty_attributes in
   let desc = match mty.mty_desc with
@@ -668,12 +643,18 @@ let with_constraint sub (_path, lid, cstr) =
       Pwith_type (map_loc sub lid, sub.type_declaration sub decl)
   | Twith_module (_path, lid2) ->
       Pwith_module (map_loc sub lid, map_loc sub lid2)
+  | Twith_modtype mty ->
+      let mty = sub.module_type sub mty in
+      Pwith_modtype (map_loc sub lid,mty)
   | Twith_typesubst decl ->
      Pwith_typesubst (map_loc sub lid, sub.type_declaration sub decl)
   | Twith_modsubst (_path, lid2) ->
       Pwith_modsubst (map_loc sub lid, map_loc sub lid2)
+  | Twith_modtypesubst mty ->
+      let mty = sub.module_type sub mty in
+      Pwith_modtypesubst (map_loc sub lid, mty)
 
-let module_expr sub mexpr =
+let module_expr (sub : mapper) mexpr =
   let loc = sub.location sub mexpr.mod_loc in
   let attrs = sub.attributes sub mexpr.mod_attributes in
   match mexpr.mod_desc with
@@ -901,7 +882,6 @@ let default_mapper =
     type_extension = type_extension;
     type_exception = type_exception;
     extension_constructor = extension_constructor;
-    effect_constructor = effect_constructor;
     value_description = value_description;
     pat = pattern;
     expr = expression;
@@ -923,10 +903,10 @@ let default_mapper =
     object_field = object_field ;
   }
 
-let untype_structure ?(mapper=default_mapper) structure =
+let untype_structure ?(mapper : mapper = default_mapper) structure =
   mapper.structure mapper structure
 
-let untype_signature ?(mapper=default_mapper) signature =
+let untype_signature ?(mapper : mapper = default_mapper) signature =
   mapper.signature mapper signature
 
 let untype_expression ?(mapper=default_mapper) expression =

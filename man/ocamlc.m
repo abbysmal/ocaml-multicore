@@ -268,14 +268,16 @@ enable colors unconditionally;
 .B never
 disable color output.
 
-The default setting is
+The environment variable "OCAML_COLOR" is considered if \-color is not
+provided. Its values are auto/always/never as above.
+
+If \-color is not provided, "OCAML_COLOR" is not set and the environment
+variable "NO_COLOR" is set, then color output is disabled. Otherwise,
+the default setting is
 .B auto,
 and the current heuristic
 checks that the "TERM" environment variable exists and is
 not empty or "dumb", and that isatty(stderr) holds.
-
-The environment variable "OCAML_COLOR" is considered if \-color is not
-provided. Its values are auto/always/never as above.
 
 .TP
 .BI \-error\-style \ mode
@@ -526,6 +528,8 @@ produced.  If the
 option is given, specify the name of the
 packed object file produced.  If the
 .B \-output\-obj
+or
+.B \-output\-complete\-obj
 option is given,
 specify the name of the output file produced.
 This can also be used when compiling an interface or implementation
@@ -558,6 +562,12 @@ must be set with the
 option. This
 option can also be used to produce a C source file (.c extension) or
 a compiled shared/dynamic library (.so extension).
+.TP
+.B \-output\-complete\-obj
+Same as
+.B \-output\-obj
+except when creating an object file where it includes the runtime and
+autolink libraries.
 .TP
 .B \-pack
 Build a bytecode object file (.cmo file) and its associated compiled
@@ -1017,7 +1027,7 @@ mentioned here corresponds to the empty set.
 
 .IP
 The default setting is
-.BR \-w\ +a\-4\-6\-7\-9\-27\-29\-30\-32..42\-44\-45\-48\-50\-60\-66\-67\-68 .
+.BR \-w\ +a\-4\-7\-9\-27\-29\-30\-32..42\-44\-45\-48\-50\-60\-66..70 .
 Note that warnings
 .BR 5 \ and \ 10
 are not always triggered, depending on the internals of the type checker.

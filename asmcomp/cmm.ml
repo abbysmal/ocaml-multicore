@@ -146,7 +146,6 @@ type memory_chunk =
   | Word_val
   | Single
   | Double
-  | Double_u
 
 and operation =
     Capply of machtype
@@ -168,6 +167,7 @@ and operation =
   | Ccmpf of float_comparison
   | Craise of Lambda.raise_kind
   | Ccheckbound
+  | Copaque
   | Cnop
   | Cdls_get
 

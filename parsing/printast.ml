@@ -147,6 +147,9 @@ let arg_label i ppf = function
   | Labelled s -> line i ppf "Labelled \"%s\"\n" s
 ;;
 
+let typevars ppf vs =
+  List.iter (fun x -> fprintf ppf " %a" Pprintast.tyvar x.txt) vs
+
 let rec core_type i ppf x =
   line i ppf "core_type %a\n" fmt_location x.ptyp_loc;
   attributes i ppf x.ptyp_attributes;
@@ -189,11 +192,7 @@ let rec core_type i ppf x =
       line i ppf "Ptyp_alias \"%s\"\n" s;
       core_type i ppf ct;
   | Ptyp_poly (sl, ct) ->
-      line i ppf "Ptyp_poly%a\n"
-        (fun ppf ->
-           List.iter (fun x -> fprintf ppf " %a" Pprintast.tyvar x.txt)
-        )
-        sl;
+      line i ppf "Ptyp_poly%a\n" typevars sl;
       core_type i ppf ct;
   | Ptyp_package (s, l) ->
       line i ppf "Ptyp_package %a\n" fmt_longident_loc s;
@@ -224,7 +223,11 @@ and pattern i ppf x =
       list i pattern ppf l;
   | Ppat_construct (li, po) ->
       line i ppf "Ppat_construct %a\n" fmt_longident_loc li;
-      option i pattern ppf po;
+      option i
+        (fun i ppf (vl, p) ->
+          list i string_loc ppf vl;
+          pattern i ppf p)
+        ppf po
   | Ppat_variant (l, po) ->
       line i ppf "Ppat_variant \"%s\"\n" l;
       option i pattern ppf po;
@@ -253,10 +256,6 @@ and pattern i ppf x =
   | Ppat_exception p ->
       line i ppf "Ppat_exception\n";
       pattern i ppf p
-  | Ppat_effect(p1, p2) ->
-      line i ppf "Ppat_effect\n";
-      pattern i ppf p1;
-      pattern i ppf p2
   | Ppat_open (m,p) ->
       line i ppf "Ppat_open \"%a\"\n" fmt_longident_loc m;
       pattern i ppf p
@@ -489,30 +488,13 @@ and extension_constructor i ppf x =
 
 and extension_constructor_kind i ppf x =
   match x with
-      Pext_decl(a, r) ->
+      Pext_decl(v, a, r) ->
         line i ppf "Pext_decl\n";
+        if v <> [] then line (i+1) ppf "vars%a\n" typevars v;
         constructor_arguments (i+1) ppf a;
         option (i+1) core_type ppf r;
     | Pext_rebind li ->
         line i ppf "Pext_rebind\n";
-        line (i+1) ppf "%a\n" fmt_longident_loc li;
-
-and effect_constructor i ppf x =
-  line i ppf "effect_constructor %a\n" fmt_location x.peff_loc;
-  attributes i ppf x.peff_attributes;
-  let i = i + 1 in
-  line i ppf "peff_name = \"%s\"\n" x.peff_name.txt;
-  line i ppf "peff_kind =\n";
-  effect_constructor_kind (i + 1) ppf x.peff_kind;
-
-and effect_constructor_kind i ppf x =
-  match x with
-      Peff_decl(a, r) ->
-        line i ppf "Peff_decl\n";
-        list (i+1) core_type ppf a;
-        core_type (i + 1) ppf r;
-    | Peff_rebind li ->
-        line i ppf "Peff_rebind\n";
         line (i+1) ppf "%a\n" fmt_longident_loc li;
 
 and class_type i ppf x =
@@ -729,9 +711,6 @@ and signature_item i ppf x =
   | Psig_typext te ->
       line i ppf "Psig_typext\n";
       type_extension i ppf te
-  | Psig_effect ext ->
-      line i ppf "Psig_effect\n";
-      effect_constructor i ppf ext;
   | Psig_exception te ->
       line i ppf "Psig_exception\n";
       type_exception i ppf te
@@ -749,6 +728,10 @@ and signature_item i ppf x =
       list i module_declaration ppf decls;
   | Psig_modtype x ->
       line i ppf "Psig_modtype %a\n" fmt_string_loc x.pmtd_name;
+      attributes i ppf x.pmtd_attributes;
+      modtype_declaration i ppf x.pmtd_type
+  | Psig_modtypesubst x ->
+      line i ppf "Psig_modtypesubst %a\n" fmt_string_loc x.pmtd_name;
       attributes i ppf x.pmtd_attributes;
       modtype_declaration i ppf x.pmtd_type
   | Psig_open od ->
@@ -792,6 +775,14 @@ and with_constraint i ppf x =
       line i ppf "Pwith_modsubst %a = %a\n"
         fmt_longident_loc lid1
         fmt_longident_loc lid2;
+  | Pwith_modtype (lid1, mty) ->
+      line i ppf "Pwith_modtype %a\n"
+        fmt_longident_loc lid1;
+      module_type (i+1) ppf mty
+  | Pwith_modtypesubst (lid1, mty) ->
+     line i ppf "Pwith_modtypesubst %a\n"
+        fmt_longident_loc lid1;
+      module_type (i+1) ppf mty
 
 and module_expr i ppf x =
   line i ppf "module_expr %a\n" fmt_location x.pmod_loc;
@@ -846,9 +837,6 @@ and structure_item i ppf x =
   | Pstr_typext te ->
       line i ppf "Pstr_typext\n";
       type_extension i ppf te
-  | Pstr_effect ext ->
-      line i ppf "Pstr_effect\n";
-      effect_constructor i ppf ext;
   | Pstr_exception te ->
       line i ppf "Pstr_exception\n";
       type_exception i ppf te
@@ -899,9 +887,10 @@ and core_type_x_core_type_x_location i ppf (ct1, ct2, l) =
   core_type (i+1) ppf ct2;
 
 and constructor_decl i ppf
-                     {pcd_name; pcd_args; pcd_res; pcd_loc; pcd_attributes} =
+     {pcd_name; pcd_vars; pcd_args; pcd_res; pcd_loc; pcd_attributes} =
   line i ppf "%a\n" fmt_location pcd_loc;
   line (i+1) ppf "%a\n" fmt_string_loc pcd_name;
+  if pcd_vars <> [] then line (i+1) ppf "pcd_vars =%a\n" typevars pcd_vars;
   attributes i ppf pcd_attributes;
   constructor_arguments (i+1) ppf pcd_args;
   option (i+1) core_type ppf pcd_res

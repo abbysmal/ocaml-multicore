@@ -142,6 +142,8 @@ and core_type_desc =
            - As the pld_type field of a label_declaration.
 
            - As a core_type of a Ptyp_object node.
+
+           - As the pval_type field of a value_description.
          *)
 
   | Ptyp_package of package_type
@@ -215,10 +217,12 @@ and pattern_desc =
 
            Invariant: n >= 2
         *)
-  | Ppat_construct of Longident.t loc * pattern option
-        (* C                None
-           C P              Some P
-           C (P1, ..., Pn)  Some (Ppat_tuple [P1; ...; Pn])
+  | Ppat_construct of
+      Longident.t loc * (string loc list * pattern) option
+        (* C                    None
+           C P                  Some ([], P)
+           C (P1, ..., Pn)      Some ([], Ppat_tuple [P1; ...; Pn])
+           C (type a b) P       Some ([a; b], P)
          *)
   | Ppat_variant of label * pattern option
         (* `A             (None)
@@ -249,8 +253,6 @@ and pattern_desc =
          *)
   | Ppat_exception of pattern
         (* exception P *)
-  | Ppat_effect of pattern * pattern
-        (* effect P P *)
   | Ppat_extension of extension
         (* [%id] *)
   | Ppat_open of Longident.t loc * pattern
@@ -379,7 +381,7 @@ and expression_desc =
   | Pexp_open of open_declaration * expression
         (* M.(E)
            let open M in E
-           let! open M in E *)
+           let open! M in E *)
   | Pexp_letop of letop
         (* let* P = E in E
            let* P = E and* P = E in E *)
@@ -477,6 +479,7 @@ and label_declaration =
 and constructor_declaration =
     {
      pcd_name: string loc;
+     pcd_vars: string loc list;
      pcd_args: constructor_arguments;
      pcd_res: core_type option;
      pcd_loc: Location.t;
@@ -526,33 +529,14 @@ and type_exception =
   }
 
 and extension_constructor_kind =
-    Pext_decl of constructor_arguments * core_type option
+    Pext_decl of string loc list * constructor_arguments * core_type option
       (*
-         | C of T1 * ... * Tn     ([T1; ...; Tn], None)
-         | C: T0                  ([], Some T0)
-         | C: T1 * ... * Tn -> T0 ([T1; ...; Tn], Some T0)
+         | C of T1 * ... * Tn     ([], [T1; ...; Tn], None)
+         | C: T0                  ([], [], Some T0)
+         | C: T1 * ... * Tn -> T0 ([], [T1; ...; Tn], Some T0)
+         | C: 'a... . T1... -> T0 (['a;...]; [T1;...], Some T0)
        *)
   | Pext_rebind of Longident.t loc
-      (*
-         | C = D
-       *)
-
-and effect_constructor =
-    {
-     peff_name: string loc;
-     peff_kind : effect_constructor_kind;
-     peff_loc : Location.t;
-     peff_attributes: attributes; (* C [@id1] [@id2] of ... *)
-    }
-
-and effect_constructor_kind =
-    Peff_decl of core_type list * core_type
-      (*
-         | C of T1 * ... * Tn     ([T1; ...; Tn], None)
-         | C: T0                  ([], Some T0)
-         | C: T1 * ... * Tn -> T0 ([T1; ...; Tn], Some T0)
-       *)
-  | Peff_rebind of Longident.t loc
       (*
          | C = D
        *)
@@ -779,8 +763,6 @@ and signature_item_desc =
         (* type t1 += ... *)
   | Psig_exception of type_exception
         (* exception C of T *)
-  | Psig_effect of effect_constructor
-        (* effect C : T -> T *)
   | Psig_module of module_declaration
         (* module X = M
            module X : MT *)
@@ -791,6 +773,8 @@ and signature_item_desc =
   | Psig_modtype of module_type_declaration
         (* module type S = MT
            module type S *)
+  | Psig_modtypesubst of module_type_declaration
+        (* module type S :=  ...  *)
   | Psig_open of open_description
         (* open X *)
   | Psig_include of include_description
@@ -874,6 +858,10 @@ and with_constraint =
            the name of the type_declaration. *)
   | Pwith_module of Longident.t loc * Longident.t loc
         (* with module X.Y = Z *)
+  | Pwith_modtype of Longident.t loc * module_type
+        (* with module type X.Y = Z *)
+  | Pwith_modtypesubst of Longident.t loc * module_type
+        (* with module type X.Y := sig end *)
   | Pwith_typesubst of Longident.t loc * type_declaration
         (* with type X.t := ..., same format as [Pwith_type] *)
   | Pwith_modsubst of Longident.t loc * Longident.t loc
@@ -929,9 +917,6 @@ and structure_item_desc =
   | Pstr_exception of type_exception
         (* exception C of T
            exception C = M.X *)
-  | Pstr_effect of effect_constructor
-        (* effect C : T -> T
-           effect C = M.X *)
   | Pstr_module of module_binding
         (* module X = ME *)
   | Pstr_recmodule of module_binding list

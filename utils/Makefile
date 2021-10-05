@@ -19,14 +19,10 @@ ROOTDIR = ..
 
 include $(ROOTDIR)/Makefile.common
 
-ifeq "$(UNIX_OR_WIN32)" "win32"
-ifeq "$(wildcard $(ROOTDIR)/flexdll/Makefile)" ""
+ifeq "$(BOOTSTRAPPING_FLEXDLL)" "false"
   FLEXDLL_DIR =
 else
-  FLEXDLL_DIR = $(if $(wildcard $(ROOTDIR)/flexdll/flexdll_*.$(O)),+flexdll)
-endif
-else
-  FLEXDLL_DIR =
+  FLEXDLL_DIR = +flexdll
 endif
 
 FLEXLINK_FLAGS ?=
@@ -58,9 +54,11 @@ config.ml: config.mlp $(ROOTDIR)/Makefile.config Makefile
 	    $(call SUBST_STRING,EXT_OBJ) \
 	    $(call SUBST,FLAMBDA) \
 	    $(call SUBST,WITH_FLAMBDA_INVARIANTS) \
+	    $(call SUBST,WITH_CMM_INVARIANTS) \
 	    $(call SUBST_STRING,FLEXLINK_FLAGS) \
 	    $(call SUBST_QUOTE,FLEXDLL_DIR) \
 	    $(call SUBST,HOST) \
+	    $(call SUBST_STRING,BINDIR) \
 	    $(call SUBST_STRING,LIBDIR) \
 	    $(call SUBST_STRING,MKDLL) \
 	    $(call SUBST_STRING,MKEXE) \
@@ -76,9 +74,12 @@ config.ml: config.mlp $(ROOTDIR)/Makefile.config Makefile
 	    $(call SUBST_STRING,PACKLD) \
 	    $(call SUBST,PROFINFO_WIDTH) \
 	    $(call SUBST_STRING,RANLIBCMD) \
+	    $(call SUBST_STRING,RPATH) \
+	    $(call SUBST_STRING,MKSHAREDLIBRPATH) \
 	    $(call SUBST,FORCE_SAFE_STRING) \
 	    $(call SUBST,DEFAULT_SAFE_STRING) \
 	    $(call SUBST,WINDOWS_UNICODE) \
+	    $(call SUBST,NAKED_POINTERS) \
 	    $(call SUBST,SUPPORTS_SHARED_LIBRARIES) \
 	    $(call SUBST,SYSTEM) \
 	    $(call SUBST,SYSTHREAD_SUPPORT) \

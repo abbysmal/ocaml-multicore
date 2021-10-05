@@ -46,7 +46,9 @@ EOF
     ;;
   i386)
     ./configure --build=x86_64-pc-linux-gnu --host=i386-linux \
-      CC='gcc -m32' AS='as --32' ASPP='gcc -m32 -c' \
+      CC='gcc -m32 -march=x86-64' \
+      AS='as --32' \
+      ASPP='gcc -m32 -march=x86-64 -c' \
       PARTIALLD='ld -r -melf_i386' \
       $configure_flags
     ;;
@@ -83,7 +85,7 @@ TestLoop () {
 
 API_Docs () {
   echo Ensuring that all library documentation compiles
-  $MAKE -C ocamldoc html_doc pdf_doc texi_doc
+  $MAKE -C api_docgen html pdf texi
 }
 
 Install () {
@@ -105,6 +107,7 @@ Checks () {
   # check that the 'clean' target also works
   $MAKE clean
   $MAKE -C manual clean
+  $MAKE -C manual distclean
   # check that the `distclean` target definitely cleans the tree
   $MAKE distclean
   # Check the working tree is clean
@@ -126,6 +129,41 @@ EOF
 
 }
 
+BuildManual () {
+  $MAKE -C manual/src/html_processing duniverse
+  $MAKE -C manual manual
+  $MAKE -C manual web
+}
+
+# ReportBuildStatus accepts an exit code as a parameter (defaults to 1) and also
+# instructs GitHub Actions to set build-status to 'failed' on non-zero exit or
+# 'success' otherwise.
+ReportBuildStatus () {
+  CODE=${1:-1}
+  if ((CODE)); then
+    STATUS='failed'
+  else
+    STATUS='success'
+  fi
+  echo "::set-output name=build-status::$STATUS"
+  exit $CODE
+}
+
+BasicCompiler () {
+  trap ReportBuildStatus ERR
+
+  ./configure --disable-dependency-generation \
+              --disable-debug-runtime \
+              --disable-instrumented-runtime
+
+  # Need a runtime
+  make -j coldstart
+  # And generated files (ocamllex compiles ocamlyacc)
+  make -j ocamllex
+
+  ReportBuildStatus 0
+}
+
 case $1 in
 configure) Configure;;
 build) Build;;
@@ -133,7 +171,9 @@ test) Test;;
 test_multicore) TestLoop "${@:3}";;
 api-docs) API_Docs;;
 install) Install;;
+manual) BuildManual;;
 other-checks) Checks;;
+basic-compiler) BasicCompiler;;
 *) echo "Unknown CI instruction: $1"
    exit 1;;
 esac

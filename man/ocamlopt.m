@@ -224,14 +224,16 @@ enable colors unconditionally;
 .B never
 disable color output.
 
-The default setting is
+The environment variable "OCAML_COLOR" is considered if \-color is not
+provided. Its values are auto/always/never as above.
+
+If \-color is not provided, "OCAML_COLOR" is not set and the environment
+variable "NO_COLOR" is set, then color output is disabled. Otherwise,
+the default setting is
 .B auto,
 and the current heuristic
 checks that the "TERM" environment variable exists and is
 not empty or "dumb", and that isatty(stderr) holds.
-
-The environment variable "OCAML_COLOR" is considered if \-color is not
-provided. Its values are auto/always/never as above.
 
 .TP
 .BI \-error\-style \ mode
@@ -475,6 +477,12 @@ must be set with the
 option.
 This option can also be used to produce a compiled shared/dynamic
 library (.so extension).
+.B \-output\-complete\-obj
+Same as
+.B \-output\-obj
+except the object file produced includes the runtime and
+autolink libraries.
+.TP
 .TP
 .B \-pack
 Build an object file (.cmx and .o files) and its associated compiled

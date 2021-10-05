@@ -88,6 +88,10 @@ type prim =
   | Send
   | Send_self
   | Send_cache
+  | Frame_pointers
+  | Identity
+  | Apply
+  | Revapply
 
 let used_primitives = Hashtbl.create 7
 let add_used_primitive loc env path =
@@ -111,12 +115,12 @@ let prim_sys_argv =
 
 let primitives_table =
   create_hashtable 57 [
-    "%identity", Primitive (Pidentity, 1);
+    "%identity", Identity;
     "%bytes_to_string", Primitive (Pbytes_to_string, 1);
     "%bytes_of_string", Primitive (Pbytes_of_string, 1);
     "%ignore", Primitive (Pignore, 1);
-    "%revapply", Primitive (Prevapply, 2);
-    "%apply", Primitive (Pdirapply, 2);
+    "%revapply", Revapply;
+    "%apply", Apply;
     "%loc_LOC", Loc Loc_LOC;
     "%loc_FILE", Loc Loc_FILE;
     "%loc_LINE", Loc Loc_LINE;
@@ -143,6 +147,7 @@ let primitives_table =
     "%ostype_unix", Primitive ((Pctconst Ostype_unix), 1);
     "%ostype_win32", Primitive ((Pctconst Ostype_win32), 1);
     "%ostype_cygwin", Primitive ((Pctconst Ostype_cygwin), 1);
+    "%frame_pointers", Frame_pointers;
     "%negint", Primitive (Pnegint, 1);
     "%succint", Primitive ((Poffsetint 1), 1);
     "%predint", Primitive ((Poffsetint(-1)), 1);
@@ -362,6 +367,8 @@ let primitives_table =
     "%atomic_exchange", Primitive (Patomic_exchange, 2);
     "%atomic_cas", Primitive (Patomic_cas, 3);
     "%atomic_fetch_add", Primitive (Patomic_fetch_add, 2);
+    "%runstack", Primitive (Prunstack, 3);
+    "%reperform", Primitive (Preperform, 3);
     "%perform", Primitive (Pperform, 1);
     "%resume", Primitive (Presume, 3);
     "%nop", Primitive (Pnop, 1);
@@ -710,10 +717,34 @@ let lambda_of_prim prim_name prim loc args arg_exps =
   | Send_self, [obj; meth] ->
       Lsend(Self, meth, obj, [], loc)
   | Send_cache, [obj; meth; cache; pos] ->
-      Lsend(Cached, meth, obj, [cache; pos], loc)
+      (* Cached mode only works in the native backend *)
+      if !Clflags.native_code then
+        Lsend(Cached, meth, obj, [cache; pos], loc)
+      else
+        Lsend(Public, meth, obj, [], loc)
+  | Frame_pointers, [] ->
+      let frame_pointers =
+        if !Clflags.native_code && Config.with_frame_pointers then 1 else 0
+      in
+      Lconst (const_int frame_pointers)
+  | Identity, [arg] -> arg
+  | Apply, [func; arg]
+  | Revapply, [arg; func] ->
+      Lapply {
+        ap_func = func;
+        ap_args = [arg];
+        ap_loc = loc;
+        (* CR-someday lwhite: it would be nice to be able to give
+           application attributes to functions applied with the application
+           operators. *)
+        ap_tailcall = Default_tailcall;
+        ap_inlined = Default_inline;
+        ap_specialised = Default_specialise;
+      }
   | (Raise _ | Raise_with_backtrace
     | Lazy_force | Loc _ | Primitive _ | Comparison _
-    | Send | Send_self | Send_cache), _ ->
+    | Send | Send_self | Send_cache | Frame_pointers | Identity
+    | Apply | Revapply), _ ->
       raise(Error(to_location loc, Wrong_arity_builtin_primitive prim_name))
 
 let check_primitive_arity loc p =
@@ -729,6 +760,9 @@ let check_primitive_arity loc p =
     | Loc _ -> p.prim_arity = 1 || p.prim_arity = 0
     | Send | Send_self -> p.prim_arity = 2
     | Send_cache -> p.prim_arity = 4
+    | Frame_pointers -> p.prim_arity = 0
+    | Identity -> p.prim_arity = 1
+    | Apply | Revapply -> p.prim_arity = 2
   in
   if not ok then raise(Error(loc, Wrong_arity_builtin_primitive p.prim_name))
 
@@ -760,7 +794,6 @@ let transl_primitive loc p env ty path =
                  body; }
 
 let lambda_primitive_needs_event_after = function
-  | Prevapply | Pdirapply (* PR#6920 *)
   (* We add an event after any primitive resulting in a C call that
      may raise an exception or allocate. These are places where we may
      collect the call stack. *)
@@ -780,7 +813,7 @@ let lambda_primitive_needs_event_after = function
   | Prunstack | Pperform | Preperform | Presume
   | Pbbswap _ -> true
 
-  | Pidentity | Pbytes_to_string | Pbytes_of_string | Pignore | Psetglobal _
+  | Pbytes_to_string | Pbytes_of_string | Pignore | Psetglobal _
   | Pgetglobal _ | Pmakeblock _ | Pfield _ | Pfield_computed | Psetfield _
   | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Praise _
   | Psequor | Psequand | Pnot | Pnegint | Paddint | Psubint | Pmulint
@@ -800,8 +833,9 @@ let primitive_needs_event_after = function
   | External _ -> true
   | Comparison(comp, knd) ->
       lambda_primitive_needs_event_after (comparison_primitive comp knd)
-  | Lazy_force | Send | Send_self | Send_cache -> true
-  | Raise _ | Raise_with_backtrace | Loc _ -> false
+  | Lazy_force | Send | Send_self | Send_cache
+  | Apply | Revapply -> true
+  | Raise _ | Raise_with_backtrace | Loc _ | Frame_pointers | Identity -> false
 
 let transl_primitive_application loc p env ty path exp args arg_exps =
   let prim =

@@ -66,7 +66,7 @@
 #define EIGHT_ALIGN 8
 #define SIXTEEN_ALIGN 16
 #define FUNCTION(name) \
-        TEXT_SECTION(caml.##name); \
+        TEXT_SECTION(name); \
         .globl name; \
         .type name,@function; \
         .align FUNCTION_ALIGN; \
@@ -315,6 +315,8 @@
 #define C_ARG_4 %rcx
 #endif
 
+        .text
+
 #if defined(FUNCTION_SECTIONS)
         TEXT_SECTION(caml_hot__code_begin)
         .globl  G(caml_hot__code_begin)
@@ -345,8 +347,7 @@ G(caml_hot__code_end):
 /* text section */
 /******************************************************************************/
 
-        .text
-
+        TEXT_SECTION(caml_system__code_begin)
         .globl  G(caml_system__code_begin)
 G(caml_system__code_begin):
         ret  /* just one instruction, so that debuggers don't display
@@ -796,6 +797,12 @@ ENDFUNCTION(G(caml_callback3_asm))
 
 /******************************************************************************/
 /* Fibers */
+/*
+ * A continuation is a one word object that points to a fiber. A fiber [f] will
+ * point to its parent at Handler_parent(Stack_handler(f)). In the following,
+ * the [last_fiber] refers to the last fiber in the linked-list formed by the
+ * parent pointer.
+ */
 /******************************************************************************/
 
 FUNCTION(G(caml_perform))
@@ -803,11 +810,11 @@ CFI_STARTPROC
     /*  %rax: effect to perform
         %rbx: freshly allocated continuation */
         movq    Caml_state(current_stack), %rsi /* %rsi := old stack */
-        leaq    1(%rsi), %rdi                   /* %rdi (cont_tail) := Val_ptr(old stack) */
+        leaq    1(%rsi), %rdi                   /* %rdi (last_fiber) := Val_ptr(old stack) */
         movq    %rdi, 0(%rbx)                   /* Initialise continuation */
 LBL(do_perform):
     /*  %rsi: old stack
-        %rdi: cont_tail */
+        %rdi: last_fiber */
         movq    Stack_handler(%rsi), %r11       /* %r11 := old stack -> handler */
         movq    Handler_parent(%r11), %r10      /* %r10 := parent stack */
         cmpq    $0, %r10                        /* parent is NULL? */
@@ -835,11 +842,11 @@ FUNCTION(G(caml_reperform))
 CFI_STARTPROC
     /*  %rax: effect to reperform
         %rbx: continuation
-        %rdi: continuation tail */
+        %rdi: last_fiber */
         movq    Caml_state(current_stack), %rsi  /* %rsi := old stack */
         movq    (Stack_handler-1)(%rdi), %r10
-        movq    %rsi, Handler_parent(%r10)       /* Append to cont_tail */
-        leaq    1(%rsi), %rdi                    /* %rdi (cont_tail) := Val_ptr(old stack) */
+        movq    %rsi, Handler_parent(%r10)       /* Append to last_fiber */
+        leaq    1(%rsi), %rdi                    /* %rdi (last_fiber) := Val_ptr(old stack) */
         jmp     LBL(do_perform)
 CFI_ENDPROC
 ENDFUNCTION(G(caml_reperform))
@@ -956,6 +963,7 @@ CFI_STARTPROC
 CFI_ENDPROC
 ENDFUNCTION(G(caml_assert_stack_invariants))
 
+        TEXT_SECTION(caml_system__code_end)
         .globl  G(caml_system__code_end)
 G(caml_system__code_end):
 

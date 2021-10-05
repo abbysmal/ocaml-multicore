@@ -127,19 +127,6 @@ val [@inline always] extension_name : extension_constructor -> string
 val [@inline always] extension_id : extension_constructor -> int
   [@@ocaml.deprecated "use Obj.Extension_constructor.id"]
 
-(** The following two functions are deprecated.  Use module {!Marshal}
-    instead. *)
-
-val marshal : t -> bytes
-  [@@ocaml.deprecated "Use Marshal.to_bytes instead."]
-val unmarshal : bytes -> int -> t * int
-  [@@ocaml.deprecated "Use Marshal.from_bytes and Marshal.total_size instead."]
-
-external clone_continuation : ('a,'b) continuation -> ('a,'b) continuation =
-  "caml_clone_continuation"
-external drop_continuation : ('a,'b) continuation -> unit =
-  "caml_drop_continuation"
-
 module Ephemeron: sig
   (** Ephemeron with arbitrary arity and untyped *)
 
@@ -198,4 +185,66 @@ module Ephemeron: sig
   val max_ephe_length: int
   (** Maximum length of an ephemeron, ie the maximum number of keys an
       ephemeron could contain *)
+end
+
+module Effect_handlers : sig
+
+  type _ eff = ..
+
+  (** [perform e] performs an effect [e].
+
+      @raises Unhandled if there is no active handler. *)
+  external perform : 'a eff -> 'a = "%perform"
+
+  module Deep : sig
+
+    type ('a,'b) continuation
+
+    (** [continue k x] resumes the continuation [k] by passing [x] to [k].
+
+        @raise Invalid_argument if the continuation has already been
+        resumed. *)
+    val continue: ('a, 'b) continuation -> 'a -> 'b
+
+    (** [discontinue k e] resumes the continuation [k] by raising the
+        exception [e] in [k].
+
+        @raise Invalid_argument if the continuation has already been
+        resumed. *)
+    val discontinue: ('a, 'b) continuation -> exn -> 'b
+
+    type ('a,'b) handler =
+      { retc: 'a -> 'b;
+        exnc: exn -> 'b;
+        effc: 'c.'c eff -> (('c,'b) continuation -> 'b) option }
+
+    val match_with: ('a -> 'b) -> 'a -> ('b,'c) handler -> 'c
+
+    type 'a effect_handler =
+      { effc: 'b. 'b eff -> (('b, 'a) continuation -> 'a) option }
+
+    val try_with: ('a -> 'b) -> 'a -> 'b effect_handler -> 'b
+
+    external drop_continuation : ('a,'b) continuation -> unit =
+      "caml_drop_continuation"
+  end
+
+  module Shallow : sig
+
+    type ('a,'b) continuation
+
+    val fiber : ('a -> 'b) -> ('a, 'b) continuation
+
+    type ('a,'b) handler =
+      { retc: 'a -> 'b;
+        exnc: exn -> 'b;
+        effc: 'c.'c eff -> (('c,'a) continuation -> 'b) option }
+
+    val continue_with : ('a,'b) continuation -> 'a -> ('b,'c) handler -> 'c
+
+    val discontinue_with : ('a,'b) continuation -> exn -> ('b,'c) handler -> 'c
+
+    external drop_continuation : ('a,'b) continuation -> unit =
+      "caml_drop_continuation"
+  end
 end

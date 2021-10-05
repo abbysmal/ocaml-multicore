@@ -108,13 +108,18 @@ let slot_offset loc cl =
   | Outgoing n ->
       assert (n >= 0);
       n
+  | Domainstate _ -> assert false  (* not a stack slot *)
 
 (* Output a stack reference *)
 
 let emit_stack r =
   match r.loc with
+  | Stack (Domainstate n) ->
+      let ofs = n + Domainstate.(idx_of_field Domain_extra_params) * 8 in
+      `[{emit_reg reg_domain_state_ptr}, #{emit_int ofs}]`
   | Stack s ->
-      let ofs = slot_offset s (register_class r) in `[sp, #{emit_int ofs}]`
+      let ofs = slot_offset env s (register_class r) in
+      `[sp, #{emit_int ofs}]`
   | _ -> fatal_error "Emit.emit_stack"
 
 (* Output an addressing mode *)
@@ -410,6 +415,8 @@ let num_call_gc_and_check_bound_points instr =
       loop instr.next (call_gc + 1, check_bound)
     | Lop (Ipoll _) ->
       loop instr.next (call_gc + 1, check_bound)
+    | Lop (Ipoll _) ->
+      loop instr.next (call_gc + 1, check_bound)
     | Lop (Iintop Icheckbound)
     | Lop (Iintop_imm (Icheckbound, _))
     | Lop (Ispecific (Ishiftcheckbound _)) ->
@@ -514,7 +521,7 @@ module BR = Branch_relaxation.Make (struct
       else if alloc then 3
       else 8
     | Lop (Istackoffset _) -> 2
-    | Lop (Iload (size, addr)) | Lop (Istore (size, addr, _)) ->
+    | Lop (Iload (size, addr, _)) | Lop (Istore (size, addr, _)) ->
       let based = match addr with Iindexed _ -> 0 | Ibased _ -> 1 in
       based + begin match size with Single -> 2 | _ -> 1 end
     | Lop (Ialloc _) when f.fun_fast -> 5
@@ -541,12 +548,14 @@ module BR = Branch_relaxation.Make (struct
     | Lop (Iintop_imm _) -> 1
     | Lop (Ifloatofint | Iintoffloat | Iabsf | Inegf | Ispecific Isqrtf) -> 1
     | Lop (Iaddf | Isubf | Imulf | Idivf | Ispecific Inegmulf) -> 1
+    | Lop (Iopaque) -> 0
     | Lop (Ispecific (Imuladdf | Inegmuladdf | Imulsubf | Inegmulsubf)) -> 1
     | Lop (Ispecific (Ishiftarith _)) -> 1
     | Lop (Ispecific (Imuladd | Imulsub)) -> 1
     | Lop (Ispecific (Ibswap 16)) -> 2
     | Lop (Ispecific (Ibswap _)) -> 1
     | Lop (Ispecific Imove32) -> 1
+    | Lop (Ispecific (Isignext _)) -> 1
     | Lreloadretaddr -> 0
     | Lreturn -> epilogue_size ()
     | Llabel _ -> 0
@@ -641,6 +650,40 @@ let load_domain_field f r =
   let dom_mask = Nativeint.(lognot (sub (shift_left one bits) one)) in
   `	and {emit_reg r}, {emit_reg reg_alloc_ptr}, #{emit_nativeint dom_mask}\n`;
   `	ldr {emit_reg r}, [{emit_reg r}, #{emit_int domain_field}]`
+
+let assembly_code_for_poll env i ~far ~return_label =
+  let lbl_frame = record_frame_label env i.live (Dbg_alloc []) in
+  let lbl_call_gc = new_label() in
+  let lbl_after_poll = match return_label with
+  | None -> new_label()
+  | Some lbl -> lbl in
+  let offset = Domainstate.(idx_of_field Domain_young_limit) * 8 in
+    `	ldr	{emit_reg reg_tmp1}, [{emit_reg reg_domain_state_ptr}, #{emit_int offset}]\n`;
+    `	cmp	{emit_reg reg_alloc_ptr}, {emit_reg reg_tmp1}\n`;
+  if not far then begin
+    match return_label with
+    | None ->
+        `	b.ls	{emit_label lbl_call_gc}\n`;
+        `{emit_label lbl_after_poll}:\n`
+    | Some return_label ->
+        `	b.hi	{emit_label return_label}\n`;
+        `	b	{emit_label lbl_call_gc}\n`;
+  end else begin
+    match return_label with
+    | None ->
+        `	b.hi	{emit_label lbl_after_poll}\n`;
+        `	b	{emit_label lbl_call_gc}\n`;
+        `{emit_label lbl_after_poll}:\n`
+    | Some return_label ->
+        let lbl = new_label () in
+        `	b.ls	{emit_label lbl}\n`;
+        `	b	{emit_label return_label}\n`;
+        `{emit_label lbl}:	b	{emit_label lbl_call_gc}\n`
+  end;
+  env.call_gc_sites <-
+    { gc_lbl = lbl_call_gc;
+      gc_return_lbl = lbl_after_poll;
+      gc_frame_lbl = lbl_frame; } :: env.call_gc_sites
 
 (* Output .text section directive, or named .text.caml.<name> if enabled. *)
 
@@ -746,8 +789,8 @@ let emit_instr i =
     | Lop(Istackoffset n) ->
         assert (n mod 16 = 0);
         emit_stack_adjustment (-n);
-        stack_offset := !stack_offset + n
-    | Lop(Iload(size, addr)) ->
+        env.stack_offset <- env.stack_offset + n
+    | Lop(Iload(size, addr, _mut)) ->
         let dst = i.res.(0) in
         let base =
           match addr with
@@ -773,7 +816,7 @@ let emit_instr i =
         | Single ->
             `	ldr	s7, {emit_addressing addr base}\n`;
             `	fcvt	{emit_reg dst}, s7\n`
-        | Word_int | Word_val | Double | Double_u ->
+        | Word_int | Word_val | Double ->
             `	ldr	{emit_reg dst}, {emit_addressing addr base}\n`
         end
     | Lop(Istore(size, addr, _)) ->
@@ -795,13 +838,17 @@ let emit_instr i =
         | Single ->
             `	fcvt	s7, {emit_reg src}\n`;
             `	str	s7, {emit_addressing addr base}\n`;
-        | Word_int | Word_val | Double | Double_u ->
+        | Word_int | Word_val | Double ->
             `	str	{emit_reg src}, {emit_addressing addr base}\n`
         end
     | Lop(Ialloc { bytes = n; dbginfo }) ->
         assembly_code_for_allocation i ~n ~far:false ~dbginfo
     | Lop(Ispecific (Ifar_alloc { bytes = n; dbginfo })) ->
-        assembly_code_for_allocation i ~n ~far:true ~dbginfo
+        assembly_code_for_allocation env i ~n ~far:true ~dbginfo
+    | Lop(Ipoll { return_label }) ->
+        assembly_code_for_poll env i ~far:false ~return_label
+    | Lop(Ispecific (Ifar_poll { return_label })) ->
+        assembly_code_for_poll env i ~far:true ~return_label
     | Lop(Iintop_imm(Iadd, n)) ->
         emit_addimm i.res.(0) i.arg.(0) n
     | Lop(Iintop_imm(Isub, n)) ->
@@ -883,6 +930,8 @@ let emit_instr i =
                      | Inegmulsubf -> "fnmsub"
                      | _ -> assert false) in
         `	{emit_string instr}	{emit_reg i.res.(0)}, {emit_reg i.arg.(1)}, {emit_reg i.arg.(2)}, {emit_reg i.arg.(0)}\n`
+    | Lop(Iopaque) ->
+        assert (i.arg.(0).loc = i.res.(0).loc)
     | Lop(Ispecific(Ishiftarith(op, shift))) ->
         let instr = (match op with
                        Ishiftadd    -> "add"
@@ -909,6 +958,8 @@ let emit_instr i =
         | _ ->
             assert false
         end
+    | Lop(Ispecific(Isignext size)) ->
+        `	sbfm	{emit_reg i.res.(0)}, {emit_reg i.arg.(0)}, #0, #{emit_int (size - 1)}\n`
     | Lreloadretaddr ->
         ()
     | Lreturn ->
