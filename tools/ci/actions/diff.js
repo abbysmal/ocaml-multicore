@@ -34,16 +34,17 @@ async function main(github, context) {
 
     var message = "🐪 Multicore diff bot\n\n";
 
+    let fetch = await exec('git fetch origin 5.00');
+    const {stdout, stderr } = await exec('git branch');
+    console.log(stdout);
+    console.log(stderr);
+
     let changed = await getChangedFiles(base, head);
     console.log(changed);
     changed.pop(); // extra \n
 
     let changed_files = changed.join(' ');
 
-    let fetch = await exec('git fetch origin 5.00');
-    const {stdout, stderr } = await exec('git branch');
-    console.log(stdout);
-    console.log(stderr);
     let beforeArg = ` ${CURRENT_BRANCH_POINT} origin/${base} -- ${changed_files}`;
     let afterArg = ` ${CURRENT_BRANCH_POINT} origin/${head} -- ${changed_files}`;
     let beforeCmd = diff_cmd.concat(beforeArg);
