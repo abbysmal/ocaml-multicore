@@ -37,6 +37,11 @@ val timer_ticks : unit -> nanoseconds
 (** Returns the number of nanoseconds elapsed since the OCaml
     runtime started. *)
 
+val set_name : string -> unit
+(** [set_name s] set the domain's thread name to [s]. [s] should not be longer
+    than 15 characters. If [s] is longer than 15 characters,
+    raise Invalid_argument. *)
+
 module Sync : sig
   (** Low-level Domain related primitives. **)
 
