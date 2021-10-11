@@ -27,6 +27,8 @@ async function getChangedFiles (base, head) {
 };
 
 async function main(github, context) {
+    console.log(context);
+    console.log(github);
     let base = github.base_ref;
     let head = github.head_ref;
 
