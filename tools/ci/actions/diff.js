@@ -20,8 +20,8 @@ async function get_diff(cmd) {
     }
 }
 
-async function getChangedFiles (base, head) {
-    let changed_cmd = `git diff --name-only origin/${base} ${head}`;
+async function getChangedFiles () {
+    let changed_cmd = `git diff --name-only origin/5.00 HEAD`;
     const {stdout, stderr} = await exec(changed_cmd);
     console.log(stdout);
     console.log(stderr);
@@ -29,8 +29,6 @@ async function getChangedFiles (base, head) {
 };
 
 async function main(github, context) {
-    let base = context.payload.pull_request.base.ref;
-    let head = context.payload.pull_request.head.ref;
 
     var message = "🐪 Multicore diff bot\n\n";
 
@@ -46,8 +44,8 @@ async function main(github, context) {
 
     let changed_files = changed.join(' ');
 
-    let beforeArg = ` ${CURRENT_BRANCH_POINT} origin/${base} -- ${changed_files}`;
-    let afterArg = ` ${CURRENT_BRANCH_POINT} origin/${head} -- ${changed_files}`;
+    let beforeArg = ` ${CURRENT_BRANCH_POINT} origin/5.00 -- ${changed_files}`;
+    let afterArg = ` ${CURRENT_BRANCH_POINT} HEAD -- ${changed_files}`;
     let beforeCmd = diff_cmd.concat(beforeArg);
     let afterCmd = diff_cmd.concat(afterArg);
     let before = await get_diff(beforeCmd);
