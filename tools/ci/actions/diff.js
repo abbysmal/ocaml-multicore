@@ -21,7 +21,7 @@ async function get_diff(cmd) {
 }
 
 async function getChangedFiles (base, head) {
-    let changed_cmd = `git diff --name-only HEAD ${base} ${head}`;
+    let changed_cmd = `git diff --name-only ${base} ${head}`;
     const {stdout, stderr} = await exec(changed_cmd);
     return (stdout.split("\n"));
 };
