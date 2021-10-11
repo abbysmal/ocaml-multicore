@@ -37,8 +37,8 @@ async function main(github, context) {
 
     let changed_files = changed.join(' ');
 
-    let beforeCmd = diff_cmd.concat('${CURRENT_BRANCH_POINT} ${base} -- ${changed_files}')
-    let afterCmd = diff_cmd.concat('${CURRENT_BRANCH_POINT} ${head} -- ${changed_files}')
+    let beforeCmd = diff_cmd.concat(' ${CURRENT_BRANCH_POINT} ${base} -- ${changed_files}')
+    let afterCmd = diff_cmd.concat(' ${CURRENT_BRANCH_POINT} ${head} -- ${changed_files}')
     let before = await get_diff(beforeCmd);
     let after = await get_diff(afterCmd);
 
