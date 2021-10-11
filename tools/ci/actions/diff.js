@@ -7,6 +7,7 @@ let diff_cmd = 'git diff --minimal --numstat';
 
 async function get_diff(cmd) {
     try {
+	console.log(cmd);
 	const {stdout, stderr} = await exec(cmd);
 	console.log({stdout, stderr});
 	let res = stdout === "" ? "0\t0\t\0\n" : stdout; // no change in git diff returns nada
