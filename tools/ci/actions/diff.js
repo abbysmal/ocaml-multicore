@@ -4,7 +4,6 @@ const exec = promisify(require('child_process').exec)
 let CURRENT_BRANCH_POINT = '6e053e0dbba91a7c6ca1aad98f1b46557d319493'
 
 let diff_cmd = 'git diff --minimal --numstat';
-let changed_cmd = 
 
 async function get_diff(cmd) {
     try {
