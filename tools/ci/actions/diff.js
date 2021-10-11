@@ -27,8 +27,8 @@ async function getChangedFiles (base, head) {
 };
 
 async function main(github, context) {
-    let base = github.event.pull_request.base.ref;
-    let head = github.event.pull_request.head.ref;
+    let base = github.base_ref;
+    let head = github.head_ref;
 
     var message = "🐪 Multicore diff bot\n\n";
 
