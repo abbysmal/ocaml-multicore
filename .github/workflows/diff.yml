@@ -1,0 +1,17 @@
+name: DiffBot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  diff-bot:
+    if: contains(github.event.pull_request.labels.*.name, 'diff-reduction')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/github-script@v4
+        with:
+          script: |
+            const script = require('./tools/ci/actions/diff.js')
+            await script({github, context})
