@@ -38,7 +38,7 @@ async function main(github, context) {
     console.log(stdout);
     console.log(stderr);
 
-    let changed = await getChangedFiles(base, head);
+    let changed = await getChangedFiles();
     console.log(changed);
     changed.pop(); // extra \n
 
