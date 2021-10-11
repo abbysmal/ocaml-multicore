@@ -35,6 +35,7 @@ async function main(github, context) {
     var message = "🐪 Multicore diff bot\n\n";
 
     let fetch = await exec('git fetch origin 5.00');
+    console.log(fetch);
     const {stdout, stderr } = await exec('git branch');
     console.log(stdout);
     console.log(stderr);
