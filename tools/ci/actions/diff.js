@@ -21,14 +21,12 @@ async function get_diff(cmd) {
 }
 
 async function getChangedFiles (base, head) {
-    let changed_cmd = `git diff --name-only ${base} ${head}`;
+    let changed_cmd = `git diff --name-only origin/${base} origin/${head}`;
     const {stdout, stderr} = await exec(changed_cmd);
     return (stdout.split("\n"));
 };
 
 async function main(github, context) {
-    console.log(context);
-    console.log(github);
     let base = context.payload.pull_request.base.ref;
     let head = context.payload.pull_request.head.ref;
 
@@ -40,8 +38,9 @@ async function main(github, context) {
 
     let changed_files = changed.join(' ');
 
-    let beforeArg = ` ${CURRENT_BRANCH_POINT} ${base} -- ${changed_files}`;
-    let afterArg = ` ${CURRENT_BRANCH_POINT} ${head} -- ${changed_files}`;
+    let fetch = await exec('git fetch origin 5.00');
+    let beforeArg = ` ${CURRENT_BRANCH_POINT} origin/${base} -- ${changed_files}`;
+    let afterArg = ` ${CURRENT_BRANCH_POINT} origin/${head} -- ${changed_files}`;
     let beforeCmd = diff_cmd.concat(beforeArg);
     let afterCmd = diff_cmd.concat(afterArg);
     let before = await get_diff(beforeCmd);
