@@ -42,10 +42,6 @@ compatibility
 tests/lib-unix/kill/'unix_kill.ml' with 1.1 (bytecode)
 tests/lib-unix/kill/'unix_kill.ml' with 1.2 (native)
 
-# TODO: off-by-one error on MacOS+Clang (#408)
-tests/lib-threads/'beat.ml' with 1.2 (native)
-tests/lib-threads/'beat.ml' with 1.1 (bytecode)
-
 # ocamldebug is broken (#34)
 tool-debugger
 
