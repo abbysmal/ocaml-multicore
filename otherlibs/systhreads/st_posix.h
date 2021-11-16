@@ -131,7 +131,7 @@ static void st_masterlock_init(st_masterlock * m)
   pthread_mutex_init(&m->lock, NULL);
   pthread_cond_init(&m->is_free, NULL);
   atomic_store_rel(&m->busy, 1);
-  atomic_store_rel(&m->waiters, 0);
+  atomic_store(&m->waiters, 0);
 
   return;
 };
@@ -155,7 +155,7 @@ static void st_bt_lock_release(st_masterlock *m) {
   // Here we do want to signal the backup thread iff there's
   // no thread waiting to be scheduled, and the backup thread is currently
   // idle.
-  if (atomic_load_acq(&m->waiters) == 0 &&
+  if (atomic_load(&m->waiters) == 0 &&
       caml_bt_is_in_blocking_section() == 0) {
     caml_bt_exit_ocaml();
   }
@@ -210,7 +210,7 @@ Caml_inline void st_thread_yield(st_masterlock * m)
   /* We already checked this without the lock, but we might have raced--if
      there's no waiter, there's nothing to do and no one to wake us if we did
      wait, so just keep going. */
-  waiters = atomic_load_acq(&m->waiters);
+  waiters = atomic_load(&m->waiters);
 
   if (waiters == 0) {
     pthread_mutex_unlock(&m->lock);
