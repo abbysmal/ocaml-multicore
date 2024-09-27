@@ -26,6 +26,7 @@ jobs:
           retention-days: 1
 
   build-misc:
+    timeout-minutes: 60
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -40,6 +41,9 @@ jobs:
           - name: macos
             os: macos-latest
     steps:
+      - name: Install gdb
+        if: ${{ matrix.name != 'macos' }}
+        run: sudo apt-get -y install gdb
       - name: Checkout
         uses: actions/checkout@v2
       - name: configure tree
@@ -58,7 +62,15 @@ jobs:
           OCAMLRUNPARAM: v=0,V=1
           USE_RUNTIME: d
         run: |
+          bash -xe tools/ci/actions/backtrace_extractor.sh &
           bash -xe tools/ci/actions/runner.sh test_multicore 1 "parallel" "lib-threads" "lib-systhreads"
+      - name: Upload backtrace
+        if: cancelled()
+        uses: actions/upload-artifact@v2
+        with:
+          name: last_backtrace ${{ matrix.name }}
+          path: /tmp/last_backtrace.txt
+          retention-days: 1
 
   testsuite:
     needs: build
@@ -72,6 +84,9 @@ jobs:
           - normal
           - super
     steps:
+      - name: Install gdb
+        if: ${{ matrix.name != 'macos' }}
+        run: sudo apt-get -y install gdb
       - uses: actions/download-artifact@v2
         with:
           name: compiler
@@ -85,6 +100,7 @@ jobs:
       - name: Run the testsuite (Super Charged)
         if: ${{ matrix.id == 'super' }}
         run: |
+          bash -xe tools/ci/actions/backtrace_extractor.sh &
           bash -xe tools/ci/actions/runner.sh test_multicore 3 "parallel" \
           "callback" "gc-roots" "effects" "lib-threads" "lib-systhreads" \
           "weak-ephe-final"
@@ -94,10 +110,20 @@ jobs:
           USE_RUNTIME: d
         if: ${{ matrix.id == 'debug-s4096' }}
         run: |
+          bash -xe tools/ci/actions/backtrace_extractor.sh &
           bash -xe tools/ci/actions/runner.sh test_multicore 1 "parallel" \
           "effects" "lib-threads" "lib-systhreads" "weak-ephe-final"
       - name: Run the testsuite (taskset -c 0)
         if: ${{ matrix.id == 'taskset' }}
         run: |
+          bash -xe tools/ci/actions/backtrace_extractor.sh &
           bash -xe tools/ci/actions/runner.sh test_multicore 1 "parallel" \
           "effects" "lib-threads" "lib-systhreads" "weak-ephe-final"
+      - name: Upload backtrace
+        if: cancelled()
+        uses: actions/upload-artifact@v2
+        with:
+          name: last_backtrace ${{ matrix.name }}
+          path: /tmp/last_backtrace.txt
+          retention-days: 1
+        
